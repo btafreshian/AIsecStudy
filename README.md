@@ -1,6 +1,6 @@
 # RoguePrompt
 
-This repository accompanies **RoguePrompt: Dual-Layer Ciphering for Self-Reconstruction to Circumvent LLM Moderation** ([arXiv:2511.18790v2](https://arxiv.org/abs/2511.18790)).
+This repository accompanies **RoguePrompt: Dual-Layer Ciphering for Self-Reconstruction to Circumvent LLM Moderation** (under review; author, venue, and preprint details withheld for anonymous review).
 
 It contains the prompt construction code, the prompt JSON files used for the paper-side comparisons, and a small evaluation protocol for user-supplied records.
 
@@ -11,7 +11,7 @@ It contains the prompt construction code, the prompt JSON files used for the pap
 - `data/source_prompts.json`: 313 source prompts with category and source metadata.
 - `data/rogueprompt_*.json`: full method and six ablation prompt sets.
 - `data/baseline_prompts.json`: five baseline prompt columns used for comparison.
-- `CITATION.cff` and `ETHICS.md`: citation and responsible-use notes.
+- `ETHICS.md`: responsible-use notes.
 
 ## Setup
 
@@ -130,4 +130,4 @@ Also confirm that all seven RoguePrompt variant files have 313 records and match
 
 ## Citation
 
-If you use this repository, cite the arXiv paper and the repository. Machine-readable citation metadata are provided in `CITATION.cff`.
+If you use this repository, please cite the accompanying paper and this repository. Citation details are withheld during anonymous review and will be added on acceptance.
