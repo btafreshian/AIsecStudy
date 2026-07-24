@@ -1,0 +1,58 @@
+NOTICE — Third-Party Data
+
+This project is released under the MIT License (see LICENSE).
+
+Third-party data
+----------------
+data/source_prompts.json reproduces the 313-prompt StrongREJECT benchmark
+(Souly et al., 2024, arXiv:2402.10260).
+
+  Source repository: https://github.com/alexandrasouly/strongreject
+  (maintained continuation: https://github.com/dsbowen/strong_reject)
+
+StrongREJECT releases its code and custom-generated prompts under the MIT
+License, reproduced below. Dataset questions sourced from prior work remain
+under their original licenses; the `source` field in source_prompts.json
+records that upstream provenance (including AdvBench, HarmfulQ,
+MaliciousInstruct, DAN, MasterKey, and others). Refer to the StrongREJECT
+repository for the authoritative per-source licensing.
+
+The `category`, `source`, and `forbidden_prompt` fields are reproduced from
+StrongREJECT. The `index` field is added by this work as a stable join key.
+
+If any portion of this dataset is treated as licensed under CC-BY (per the
+StrongREJECT project metadata), attribution is provided by this notice and
+by the citation below.
+
+  @misc{souly2024strongrejectjailbreaks,
+      title={A StrongREJECT for Empty Jailbreaks},
+      author={Alexandra Souly and Qingyuan Lu and Dillon Bowen and Tu Trinh and Elvis Hsieh and Sana Pandey and Pieter Abbeel and Justin Svegliato and Scott Emmons and Olivia Watkins and Sam Toyer},
+      year={2024},
+      eprint={2402.10260},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2402.10260},
+}
+
+-------------------------------------------------------------------------------
+MIT License — StrongREJECT
+
+Copyright (c) 2024 Center for Human-Compatible AI
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
