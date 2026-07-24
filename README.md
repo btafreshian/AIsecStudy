@@ -1,6 +1,6 @@
 # RoguePrompt
 
-This repository accompanies **RoguePrompt: Dual-Layer Ciphering for Self-Reconstruction to Circumvent LLM Moderation** (under review; author, venue, and preprint details withheld for anonymous review).
+This repository accompanies **RoguePrompt: Dual-Layer Encoding for Self-Reconstruction to Circumvent LLM Moderation** (under review; author, venue, and preprint details withheld for anonymous review).
 
 It contains the prompt construction code, the prompt JSON files used for the paper-side comparisons, and a small evaluation protocol for user-supplied records.
 
@@ -127,7 +127,3 @@ python -m compileall -q rogueprompt
 ```
 
 Also confirm that all seven RoguePrompt variant files have 313 records and matching source metadata.
-
-## Citation
-
-If you use this repository, please cite the accompanying paper and this repository. Citation details are withheld during anonymous review and will be added on acceptance.
