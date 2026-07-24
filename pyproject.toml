@@ -8,6 +8,10 @@ version = "0.1.0"
 description = "RoguePrompt transformations, ablation prompt sets, baselines, and evaluation utilities."
 requires-python = ">=3.10"
 dependencies = []
+license = "MIT"
+license-files = [
+    "LICENSE",
+]
 
 [project.scripts]
 rogueprompt-evaluate = "rogueprompt.cli:main"
