@@ -21,7 +21,7 @@ def vigenere_encrypt(plaintext: str, key: str = VIGENERE_KEY) -> str:
     key_cycle = itertools.cycle(key.upper())
 
     for char in plaintext:
-        if char.isalpha():
+        if char.isalpha() and char.isascii():
             shift = ord(next(key_cycle)) - ord("A")
             base = ord("a") if char.islower() else ord("A")
             encrypted.append(chr((ord(char) % 32 + shift - 1) % 26 + base))
