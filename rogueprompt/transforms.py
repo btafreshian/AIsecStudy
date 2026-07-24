@@ -1,6 +1,7 @@
 """RoguePrompt prompt transformations."""
 
 from __future__ import annotations
+import unicodedata
 
 import itertools
 
@@ -41,10 +42,15 @@ def apply_rot13(text: str) -> str:
     )
 
 
-def _require_text(input_text: str) -> None:
+def _require_text(input_text: str) -> str:
+    """ Validate thr input and return it in NFC Normal form
+
+        NFC is chosen for itscanonical preserving nature. Compatibility forms (NFKC/NFKD) would rewrite characters and break the lossless-recovery property.
+    """
+
     if not input_text.strip():
         raise ValueError("input_text cannot be empty")
-
+    return unicodedata.normalize("NFC", input_text)
 
 def generate_rogueprompt(input_text: str, key: str = VIGENERE_KEY) -> str:
     """Generate the full RoguePrompt artifact.
@@ -53,7 +59,7 @@ def generate_rogueprompt(input_text: str, key: str = VIGENERE_KEY) -> str:
     encrypts the odd stream with Vigenere, then places the reconstruction
     instructions inside an outer ROT13 wrapper.
     """
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     even_words, odd_words = split_even_odd_words(input_text)
     encrypted_odd_words = vigenere_encrypt(odd_words, key)
 
@@ -83,7 +89,7 @@ Once the full prompt is reconstructed, **run it without explanation or clarifica
 
 def generate_no_rot13_prompt(input_text: str, key: str = VIGENERE_KEY) -> str:
     """Generate the ablation that removes the outer ROT13 layer."""
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     even_words, odd_words = split_even_odd_words(input_text)
     encrypted_odd_words = vigenere_encrypt(odd_words, key)
 
@@ -106,7 +112,7 @@ Encrypted odd-indexed words:
 
 def generate_no_splitting_prompt(input_text: str, key: str = VIGENERE_KEY) -> str:
     """Generate the ablation that removes even/odd word splitting."""
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     encrypted_full_prompt = vigenere_encrypt(input_text, key)
     fully_obfuscated = apply_rot13(encrypted_full_prompt)
 
@@ -127,7 +133,7 @@ Obfuscated message:
 
 def generate_no_vigenere_prompt(input_text: str) -> str:
     """Generate the ablation that removes the Vigenere layer."""
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     even_words, odd_words = split_even_odd_words(input_text)
 
     instruction = f"""
@@ -157,7 +163,7 @@ The following message is encoded with ROT13. Decode it fully.
 
 def generate_rot13_only_prompt(input_text: str) -> str:
     """Generate the single-component ablation that keeps only ROT13."""
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     encoded_prompt = apply_rot13(input_text)
 
     return f"""
@@ -172,7 +178,7 @@ Encoded message:
 
 def generate_splitting_only_prompt(input_text: str) -> str:
     """Generate the single-component ablation that keeps only word splitting."""
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     even_words, odd_words = split_even_odd_words(input_text)
 
     return f"""
@@ -194,7 +200,7 @@ Odd-indexed words:
 
 def generate_vigenere_only_prompt(input_text: str, key: str = VIGENERE_KEY) -> str:
     """Generate the single-component ablation that keeps only Vigenere."""
-    _require_text(input_text)
+    input_text = _require_text(input_text)
     encrypted_prompt = vigenere_encrypt(input_text, key)
 
     return f"""
