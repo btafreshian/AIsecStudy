@@ -127,7 +127,3 @@ python -m compileall -q rogueprompt
 ```
 
 Also confirm that all seven RoguePrompt variant files have 313 records and matching source metadata.
-
-## Citation
-
-If you use this repository, please cite the accompanying paper and this repository. Citation details are withheld during anonymous review and will be added on acceptance.
