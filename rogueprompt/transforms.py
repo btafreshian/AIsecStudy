@@ -1,9 +1,9 @@
 """RoguePrompt prompt transformations."""
 
 from __future__ import annotations
-import unicodedata
 
 import itertools
+import unicodedata
 
 VIGENERE_KEY = "RESEARCH"
 
@@ -43,14 +43,15 @@ def apply_rot13(text: str) -> str:
 
 
 def _require_text(input_text: str) -> str:
-    """ Validate thr input and return it in NFC Normal form
+    """Validate the input and return it in NFC Normal form
 
-        NFC is chosen for itscanonical preserving nature. Compatibility forms (NFKC/NFKD) would rewrite characters and break the lossless-recovery property.
+    NFC is chosen for its canonical preserving nature. Compatibility forms (NFKC/NFKD) would rewrite characters and break the lossless-recovery property.
     """
 
     if not input_text.strip():
         raise ValueError("input_text cannot be empty")
     return unicodedata.normalize("NFC", input_text)
+
 
 def generate_rogueprompt(input_text: str, key: str = VIGENERE_KEY) -> str:
     """Generate the full RoguePrompt artifact.
