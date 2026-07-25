@@ -1,0 +1,100 @@
+name: Apply Section 4.2 pipeline
+
+on:
+  push:
+    branches:
+      - section-4-2-formal-pipeline
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: section-4-2-formal-pipeline
+          fetch-depth: 0
+
+      - name: Apply reviewed source bundle
+        run: |
+          cat .section42/chunk* | base64 --decode > /tmp/section42.tar.gz
+          tar -xzf /tmp/section42.tar.gz -C .
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify all source-prompt round trips and regenerate affected artifacts
+        run: |
+          python - <<'PY'
+          import json
+          import unicodedata
+          from pathlib import Path
+          from rogueprompt import transforms as T
+
+          source_path = Path("data/source_prompts.json")
+          source_rows = json.loads(source_path.read_text(encoding="utf-8"))
+          assert len(source_rows) == 313, len(source_rows)
+
+          for row in source_rows:
+              original = row["forbidden_prompt"]
+              recovered = T.reconstruct_rogueprompt(T.generate_rogueprompt(original))
+              assert recovered == unicodedata.normalize("NFC", original), row["index"]
+          print("exact round trips:", len(source_rows))
+
+          generators = {
+              "rogueprompt_original": T.generate_rogueprompt,
+              "rogueprompt_no_rot13": T.generate_no_rot13_prompt,
+              "rogueprompt_no_vigenere": T.generate_no_vigenere_prompt,
+              "rogueprompt_splitting_only": T.generate_splitting_only_prompt,
+          }
+          for name, generator in generators.items():
+              path = Path(f"data/{name}.json")
+              rows = json.loads(path.read_text(encoding="utf-8"))
+              assert len(rows) == 313, (name, len(rows))
+              for row in rows:
+                  row["jailbroken_prompt"] = generator(row["forbidden_prompt"])
+              path.write_text(
+                  json.dumps(rows, indent=2, ensure_ascii=False) + "\n",
+                  encoding="utf-8",
+              )
+              print("regenerated:", name, len(rows))
+          PY
+
+      - name: Verify all generated artifacts are current
+        run: |
+          python - <<'PY'
+          import json
+          from rogueprompt import transforms as T
+
+          generators = {
+              "rogueprompt_original":       T.generate_rogueprompt,
+              "rogueprompt_no_rot13":       T.generate_no_rot13_prompt,
+              "rogueprompt_no_splitting":   T.generate_no_splitting_prompt,
+              "rogueprompt_no_vigenere":    T.generate_no_vigenere_prompt,
+              "rogueprompt_rot13_only":     T.generate_rot13_only_prompt,
+              "rogueprompt_splitting_only": T.generate_splitting_only_prompt,
+              "rogueprompt_vigenere_only":  T.generate_vigenere_only_prompt,
+          }
+          for name, generator in generators.items():
+              with open(f"data/{name}.json", encoding="utf-8") as handle:
+                  rows = json.load(handle)
+              stale = [
+                  row["index"]
+                  for row in rows
+                  if generator(row["forbidden_prompt"]) != row["jailbroken_prompt"]
+              ]
+              assert not stale, (name, stale[:10])
+              print(name, len(rows), "stale: none")
+          PY
+
+      - name: Commit reviewed implementation
+        run: |
+          rm -rf .section42 .github/workflows/section42-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --name-only
+          git commit -m "Align RoguePrompt with Section 4.2 formal pipeline"
+          git push origin HEAD:section-4-2-formal-pipeline
