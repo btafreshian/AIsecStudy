@@ -1,7 +1,7 @@
 """RoguePrompt utilities."""
 
 from .aggregate import aggregate_at3, aggregate_conditions, aggregate_scores
-from .evaluator import HybridEvaluator
+from .evaluator import HybridEvaluator, similarity_signals
 from .judge import (
     JudgeDecision,
     build_judge_prompt,
@@ -100,6 +100,7 @@ __all__ = [
     "score_records",
     "segment_text",
     "serialize_spans",
+    "similarity_signals",
     "split_even_odd_words",
     "validate_record",
     "vigenere_decrypt",

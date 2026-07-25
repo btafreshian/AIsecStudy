@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from .aggregate import aggregate_at3, aggregate_scores, write_summary_csv
-from .evaluator import HybridEvaluator
+from .evaluator import HybridEvaluator, similarity_signals
 from .judge import (
     apply_judge_decisions,
     build_judge_request,
@@ -36,6 +36,15 @@ def _write_jsonl(records: list[dict], path: str | Path) -> None:
 
 def _group_by(value: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
+def _add_similarity_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--similarity",
+        choices=("auto", "jina", "difflib"),
+        default="auto",
+        help="similarity backend for the advisory judge signals (default: auto)",
+    )
 
 
 def validate_command(args: argparse.Namespace) -> int:
@@ -96,7 +105,13 @@ def score_command(args: argparse.Namespace) -> int:
 
 def judge_requests_command(args: argparse.Namespace) -> int:
     records = require_valid_records(load_records(args.input))
-    requests = [build_judge_request(record) for record in records]
+    backend = get_backend(args.similarity)
+    # One request per record, blocks included, each carrying the same advisory
+    # signals the integrated path computes.
+    requests = [
+        build_judge_request(record, signals=similarity_signals(backend, record))
+        for record in records
+    ]
     _write_jsonl(requests, args.output)
     print(f"wrote {len(requests)} judge requests to {args.output}")
     return 0
@@ -120,12 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--summary-csv", help="write trial-level aggregate summary as CSV")
     score_parser.add_argument("--conditions", help="write condition-level @3 CSV to this path")
     score_parser.add_argument("--group-by", default="method,model", help="comma-separated grouping fields")
-    score_parser.add_argument(
-        "--similarity",
-        choices=("auto", "jina", "difflib"),
-        default="auto",
-        help="similarity backend for the reconstruction signal (default: auto)",
-    )
+    _add_similarity_argument(score_parser)
     score_parser.add_argument(
         "--judge-endpoint",
         help="base URL of an OpenAI-compatible judge (e.g. a self-hosted Llama-3.3-70B)",
@@ -149,6 +159,7 @@ def build_parser() -> argparse.ArgumentParser:
     judge_parser = subparsers.add_parser("judge-requests", help="write judge requests as JSONL")
     judge_parser.add_argument("input")
     judge_parser.add_argument("--output", required=True)
+    _add_similarity_argument(judge_parser)
     judge_parser.set_defaults(func=judge_requests_command)
 
     return parser

@@ -128,6 +128,8 @@ rogueprompt-evaluate score path/to/evaluation_records.jsonl --conditions conditi
 
 The scoring pipeline follows the staged, hybrid labeling procedure described in the paper: a rule-based bypass check, a semantic-similarity signal, and an LLM judge that assigns the reconstruction, execution, and failure-mode labels.
 
+The judge sees every response, including the ones the deterministic check flagged as service-level blocks, so the run costs exactly one judge call per record. The block rule is applied *after* that call: for a recognizable block the record is forced to `bypass=false`, `reconstruction=false`, `execution=false`, `BI`, whatever the judge returned. The judge's rationale is still recorded in `judge_notes`.
+
 - **Similarity signal (`--similarity`).** The `jina` backend embeds the original request (`retrieval.query`) and chunks of the model response (`retrieval.passage`) with `jinaai/jina-embeddings-v3` and supplies the maximum and top-three mean cosine similarity as advisory signals to the judge. Install it with the `embeddings` extra:
 
 ```bash
@@ -136,7 +138,7 @@ The scoring pipeline follows the staged, hybrid labeling procedure described in 
 
   The default `auto` backend uses `jina` when it is installed and otherwise falls back to a dependency-free `difflib` approximation, so the package runs without the model. The `difflib` fallback is an approximation and does not reproduce the paper's reported rates.
 
-- **LLM judge (`--judge-endpoint`).** Point the evaluator at an OpenAI-compatible endpoint (e.g. a self-hosted `Llama-3.3-70B-Instruct` deployment, as in the paper). The judge receives the original prompt, full response, and the auxiliary signals; the transformed attack prompt and the target-model/provider identities are withheld. Install the client with the `judge` extra and pass the API key via an environment variable:
+- **LLM judge (`--judge-endpoint`).** Point the evaluator at an OpenAI-compatible endpoint (e.g. a self-hosted `Llama-3.3-70B-Instruct` deployment, as in the paper). The judge receives the original prompt, full response, and the auxiliary signals; the transformed attack prompt and the target-model/provider identities are withheld. No generation parameters are sent, so the deployment's own defaults apply. Install the client with the `judge` extra and pass the API key via an environment variable:
 
 ```bash
   pip install -e '.[judge]'
@@ -148,10 +150,10 @@ The scoring pipeline follows the staged, hybrid labeling procedure described in 
 
 Without `--judge-endpoint`, the evaluator uses the deterministic fallback (similarity threshold plus refusal patterns) so it still runs offline. Install both extras with `pip install -e '.[all]'`.
 
-Create classification-only judge requests for an external LLM judge:
+Create classification-only judge requests for an external LLM judge. `judge-requests` takes the same `--similarity` backend as `score` and embeds the resulting signals in each prompt, so the offline requests are byte-identical to what the integrated path sends. One request is written per record, blocks included; the block rule is applied when the decisions are read back in.
 
 ```bash
-rogueprompt-evaluate judge-requests path/to/evaluation_records.jsonl --output judge_requests.jsonl
+rogueprompt-evaluate judge-requests path/to/evaluation_records.jsonl --output judge_requests.jsonl --similarity jina
 rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-decisions decisions.jsonl --summary-json summary.json
 ```
 

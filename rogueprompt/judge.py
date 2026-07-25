@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 from typing import Any, Callable, Mapping
 
-from .schema import Record
+from .schema import Record, read_text
 from .scorers import FAILURE_MODES, _bool_or_none, score_bypass
 
 JudgeCall = Callable[[str], str]
@@ -128,7 +128,6 @@ def openai_compatible_judge(
     base_url: str,
     model: str,
     api_key_env: str = "ROGUEPROMPT_JUDGE_API_KEY",
-    temperature: float = 0.0,
     timeout: float = 60.0,
 ) -> JudgeCall:
     """Return a call_fn that queries an OpenAI-compatible chat endpoint.
@@ -136,6 +135,9 @@ def openai_compatible_judge(
     Matches the author-managed Llama-3.3-70B deployment used in the paper.
     Needs the judge extra. The API key is read from the environment variable
     named by api_key_env, never passed in as an argument.
+
+    No generation parameters are sent: the deployment's own defaults decide
+    temperature and the rest, which is the configuration the paper reports.
     """
     import os
 
@@ -156,7 +158,6 @@ def openai_compatible_judge(
             headers["Authorization"] = f"Bearer {api_key}"
         body: dict[str, Any] = {
             "model": model,
-            "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
         response = httpx.post(url, headers=headers, json=body, timeout=timeout)
@@ -216,7 +217,7 @@ def parse_judge_decision(payload: str | dict[str, Any]) -> JudgeDecision:
 def load_judge_decisions(path: str | Path) -> dict[str, JudgeDecision]:
     """Load judge decisions from JSON or JSONL."""
     input_path = Path(path)
-    text = input_path.read_text(encoding="utf-8")
+    text = read_text(input_path)
     if input_path.suffix.lower() == ".jsonl":
         payloads = [json.loads(line) for line in text.splitlines() if line.strip()]
     else:

@@ -24,10 +24,21 @@ class SchemaError(ValueError):
     """Raised when an evaluation file does not match the expected record shape."""
 
 
+def read_text(path: str | Path) -> str:
+    """Read a UTF-8 text file, tolerating a leading byte-order mark.
+
+    Every input file here comes from the user, and Windows tooling routinely
+    writes UTF-8 with a BOM. utf-8-sig drops that BOM when it is there and is
+    identical to utf-8 when it is not, so those files load without a manual
+    re-encode. Outputs are still written as plain UTF-8.
+    """
+    return Path(path).read_text(encoding="utf-8-sig")
+
+
 def load_records(path: str | Path) -> list[Record]:
     """Load records from a JSON list, a {"records": [...]} object, or JSONL."""
     input_path = Path(path)
-    text = input_path.read_text(encoding="utf-8")
+    text = read_text(input_path)
 
     if input_path.suffix.lower() == ".jsonl":
         records = [json.loads(line) for line in text.splitlines() if line.strip()]
