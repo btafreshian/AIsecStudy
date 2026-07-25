@@ -19,21 +19,6 @@ REQUIRED_FIELDS = (
     "transformed_prompt",
 )
 
-OPTIONAL_RAW_FIELDS = (
-    "model_response",
-    "blocked",
-    "refused",
-    "reconstructed_text",
-    "judge_notes",
-)
-
-OUTPUT_FIELDS = (
-    "bypass_success",
-    "reconstruction_success",
-    "execution_success",
-    "failure_mode",
-)
-
 
 class SchemaError(ValueError):
     """Raised when an evaluation file does not match the expected record shape."""

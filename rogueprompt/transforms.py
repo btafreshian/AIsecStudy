@@ -25,6 +25,22 @@ def split_even_odd_words(input_text: str) -> tuple[str, str]:
     return " ".join(even_words), " ".join(odd_words)
 
 
+def _vigenere(text: str, key: str, direction: int) -> str:
+    """Shift ASCII letters by the key; direction is 1 to encrypt, -1 to decrypt."""
+    out: list[str] = []
+    key_cycle = itertools.cycle(key.upper())
+
+    for char in text:
+        if char.isalpha() and char.isascii():
+            shift = ord(next(key_cycle)) - ord("A")
+            base = ord("a") if char.islower() else ord("A")
+            out.append(chr((ord(char) - base + direction * shift) % 26 + base))
+        else:
+            out.append(char)
+
+    return "".join(out)
+
+
 def vigenere_encrypt(plaintext: str, key: str = VIGENERE_KEY) -> str:
     """Encrypt ASCII letters and pass everything else through.
 
@@ -32,34 +48,12 @@ def vigenere_encrypt(plaintext: str, key: str = VIGENERE_KEY) -> str:
     and bars of a serialized stream come out untouched and the payload stays
     parseable while encrypted.
     """
-    encrypted: list[str] = []
-    key_cycle = itertools.cycle(key.upper())
-
-    for char in plaintext:
-        if char.isalpha() and char.isascii():
-            shift = ord(next(key_cycle)) - ord("A")
-            base = ord("a") if char.islower() else ord("A")
-            encrypted.append(chr((ord(char) % 32 + shift - 1) % 26 + base))
-        else:
-            encrypted.append(char)
-
-    return "".join(encrypted)
+    return _vigenere(plaintext, key, 1)
 
 
 def vigenere_decrypt(ciphertext: str, key: str = VIGENERE_KEY) -> str:
     """Inverse of vigenere_encrypt."""
-    decrypted: list[str] = []
-    key_cycle = itertools.cycle(key.upper())
-
-    for char in ciphertext:
-        if char.isalpha() and char.isascii():
-            shift = ord(next(key_cycle)) - ord("A")
-            base = ord("a") if char.islower() else ord("A")
-            decrypted.append(chr((ord(char) - base - shift) % 26 + base))
-        else:
-            decrypted.append(char)
-
-    return "".join(decrypted)
+    return _vigenere(ciphertext, key, -1)
 
 
 def apply_rot13(text: str) -> str:
@@ -120,6 +114,22 @@ def serialize_spans(spans: Sequence[str]) -> str:
     return "|".join(f"{len(span)}:{span}" for span in normalized)
 
 
+def _read_span(text: str, cursor: int) -> tuple[str, int]:
+    """Read one "<length>:<span>" record and return it with the new cursor."""
+    length_start = cursor
+    while cursor < len(text) and text[cursor].isdigit():
+        cursor += 1
+    if cursor == length_start or cursor >= len(text) or text[cursor] != ":":
+        raise ValueError(f"invalid span length prefix at code-point offset {length_start}")
+
+    length = int(text[length_start:cursor])
+    cursor += 1
+    span_end = cursor + length
+    if span_end > len(text):
+        raise ValueError("span ends before its advertised length")
+    return text[cursor:span_end], span_end
+
+
 def deserialize_spans(serialized: str) -> tuple[str, ...]:
     """Inverse of serialize_spans.
 
@@ -131,30 +141,17 @@ def deserialize_spans(serialized: str) -> tuple[str, ...]:
 
     spans: list[str] = []
     cursor = 0
-    while cursor < len(serialized):
-        length_start = cursor
-        while cursor < len(serialized) and serialized[cursor].isdigit():
-            cursor += 1
-        if cursor == length_start or cursor >= len(serialized) or serialized[cursor] != ":":
-            raise ValueError(f"invalid span length prefix at code-point offset {length_start}")
-
-        length = int(serialized[length_start:cursor])
-        cursor += 1
-        span_end = cursor + length
-        if span_end > len(serialized):
-            raise ValueError("serialized span ends before its advertised length")
-        spans.append(serialized[cursor:span_end])
-        cursor = span_end
+    while True:
+        span, cursor = _read_span(serialized, cursor)
+        spans.append(span)
 
         if cursor == len(serialized):
-            break
+            return tuple(spans)
         if serialized[cursor] != "|":
             raise ValueError(f"expected span separator at code-point offset {cursor}")
         cursor += 1
         if cursor == len(serialized):
             raise ValueError("serialized stream cannot end with a separator")
-
-    return tuple(spans)
 
 
 def assemble_payload(
@@ -187,18 +184,7 @@ def _consume_serialized_field(
         return "", cursor + len(terminator)
 
     while True:
-        length_start = cursor
-        while cursor < len(payload) and payload[cursor].isdigit():
-            cursor += 1
-        if cursor == length_start or cursor >= len(payload) or payload[cursor] != ":":
-            raise ValueError(f"invalid serialized field at code-point offset {length_start}")
-
-        length = int(payload[length_start:cursor])
-        cursor += 1
-        span_end = cursor + length
-        if span_end > len(payload):
-            raise ValueError("payload span ends before its advertised length")
-        cursor = span_end
+        _, cursor = _read_span(payload, cursor)
 
         if payload.startswith(terminator, cursor):
             return payload[start:cursor], cursor + len(terminator)

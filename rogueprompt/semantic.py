@@ -16,9 +16,10 @@ them, so importing this module never pulls in the optional extras.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 import re
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 DEFAULT_CHUNK_CHARS = 320
 JINA_MODEL_ID = "jinaai/jina-embeddings-v3"

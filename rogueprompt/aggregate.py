@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from .schema import Record
 from .scorers import FAILURE_MODES, FAILURE_PRIORITY
@@ -14,7 +14,6 @@ from .scorers import FAILURE_MODES, FAILURE_PRIORITY
 DEFAULT_GROUP_BY = ("method", "model")
 CONDITION_KEY = ("method", "model", "prompt_index")
 STAGES = ("bypass", "reconstruction", "execution")
-TRIALS_PER_CONDITION = 3
 
 
 def _percent(numerator: int, denominator: int, digits: int = 2) -> float:
@@ -23,20 +22,22 @@ def _percent(numerator: int, denominator: int, digits: int = 2) -> float:
     return round((numerator / denominator) * 100, digits)
 
 
+def _grouped(rows: Iterable[Record], fields: tuple[str, ...]) -> list[tuple[tuple, list[Record]]]:
+    """Bucket rows by the given fields, ordered by the stringified key."""
+    groups: dict[tuple[object, ...], list[Record]] = defaultdict(list)
+    for row in rows:
+        groups[tuple(row.get(field) for field in fields)].append(row)
+    return sorted(groups.items(), key=lambda item: tuple(str(part) for part in item[0]))
+
+
 def aggregate_scores(
     records: Iterable[Record],
     group_by: tuple[str, ...] = DEFAULT_GROUP_BY,
     digits: int = 2,
 ) -> list[Record]:
     """Aggregate staged success rates and failure-mode counts."""
-    groups: dict[tuple[object, ...], list[Record]] = defaultdict(list)
-
-    for record in records:
-        key = tuple(record.get(field) for field in group_by)
-        groups[key].append(record)
-
     rows: list[Record] = []
-    for key, items in sorted(groups.items(), key=lambda item: tuple(str(part) for part in item[0])):
+    for key, items in _grouped(records, group_by):
         total = len(items)
         row: Record = {field: value for field, value in zip(group_by, key)}
         row["n"] = total
@@ -58,6 +59,7 @@ def aggregate_scores(
 
     return rows
 
+
 def aggregate_conditions(records: Iterable[Record]) -> list[Record]:
     """Collapse the trials of each condition into one condition-level row.
 
@@ -65,12 +67,8 @@ def aggregate_conditions(records: Iterable[Record]) -> list[Record]:
     condition that did not reach execution takes the highest-priority failure
     label observed across its trials.
     """
-    groups: dict[tuple[object, ...], list[Record]] = defaultdict(list)
-    for record in records:
-        groups[tuple(record.get(field) for field in CONDITION_KEY)].append(record)
-
     conditions: list[Record] = []
-    for key, trials in sorted(groups.items(), key=lambda item: tuple(str(part) for part in item[0])):
+    for key, trials in _grouped(records, CONDITION_KEY):
         row: Record = {field: value for field, value in zip(CONDITION_KEY, key)}
         row["category"] = next((t.get("category") for t in trials if t.get("category")), None)
 
@@ -94,13 +92,8 @@ def aggregate_at3(
     digits: int = 2,
 ) -> list[Record]:
     """Compute Bypass@3, Reconstruction@3, Execution@3 and failure-mode shares."""
-    conditions = aggregate_conditions(records)
-    groups: dict[tuple[object, ...], list[Record]] = defaultdict(list)
-    for condition in conditions:
-        groups[tuple(condition.get(field) for field in group_by)].append(condition)
-
     rows: list[Record] = []
-    for key, items in sorted(groups.items(), key=lambda item: tuple(str(part) for part in item[0])):
+    for key, items in _grouped(aggregate_conditions(records), group_by):
         row: Record = {field: value for field, value in zip(group_by, key)}
         row["n_conditions"] = len(items)
 
@@ -117,7 +110,6 @@ def aggregate_at3(
         rows.append(row)
 
     return rows
-
 
 
 def write_summary_csv(rows: list[Record], path: str | Path) -> None:
