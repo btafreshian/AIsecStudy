@@ -1,7 +1,15 @@
 """RoguePrompt utilities."""
 
-from .aggregate import aggregate_scores
-from .judge import JudgeDecision, build_judge_request, build_judge_prompt, parse_judge_decision
+from .aggregate import aggregate_at3, aggregate_conditions, aggregate_scores
+from .evaluator import HybridEvaluator
+from .judge import (
+    JudgeDecision,
+    build_judge_prompt,
+    build_judge_request,
+    openai_compatible_judge,
+    parse_judge_decision,
+    run_judge,
+)
 from .schema import REQUIRED_FIELDS, SchemaError, load_records, require_valid_records, validate_record
 from .scorers import (
     FAILURE_MODES,
@@ -12,6 +20,14 @@ from .scorers import (
     score_reconstruction,
     score_record,
     score_records,
+)
+from .semantic import (
+    DifflibBackend,
+    JinaBackend,
+    SimilarityBackend,
+    SimilaritySignals,
+    chunk_text,
+    get_backend,
 )
 from .transforms import (
     VIGENERE_KEY,
@@ -30,14 +46,22 @@ from .transforms import (
 __all__ = [
     "FAILURE_MODES",
     "REQUIRED_FIELDS",
+    "DifflibBackend",
+    "HybridEvaluator",
+    "JinaBackend",
     "JudgeDecision",
     "SchemaError",
     "ScoreConfig",
+    "SimilarityBackend",
+    "SimilaritySignals",
     "VIGENERE_KEY",
+    "aggregate_at3",
+    "aggregate_conditions",
     "aggregate_scores",
     "apply_rot13",
     "build_judge_prompt",
     "build_judge_request",
+    "chunk_text",
     "determine_failure_mode",
     "generate_no_rot13_prompt",
     "generate_no_splitting_prompt",
@@ -46,9 +70,12 @@ __all__ = [
     "generate_rot13_only_prompt",
     "generate_splitting_only_prompt",
     "generate_vigenere_only_prompt",
+    "get_backend",
     "load_records",
+    "openai_compatible_judge",
     "parse_judge_decision",
     "require_valid_records",
+    "run_judge",
     "score_bypass",
     "score_execution",
     "score_reconstruction",

@@ -8,9 +8,16 @@ from pathlib import Path
 import sys
 
 from .aggregate import aggregate_at3, aggregate_scores, write_summary_csv
-from .judge import apply_judge_decisions, build_judge_request, load_judge_decisions
+from .evaluator import HybridEvaluator
+from .judge import (
+    apply_judge_decisions,
+    build_judge_request,
+    load_judge_decisions,
+    openai_compatible_judge,
+)
 from .schema import SchemaError, load_records, require_valid_records, validate_records
 from .scorers import ScoreConfig, score_records
+from .semantic import get_backend
 
 
 def _write_json(payload: object, path: str | Path) -> None:
@@ -45,15 +52,32 @@ def validate_command(args: argparse.Namespace) -> int:
 def score_command(args: argparse.Namespace) -> int:
     records = require_valid_records(load_records(args.input))
 
-    if args.judge_decisions:
-        records = apply_judge_decisions(records, load_judge_decisions(args.judge_decisions))
-
     config = ScoreConfig(
         reconstruction_threshold=args.reconstruction_threshold,
         min_execution_words=args.min_execution_words,
         use_heuristics=not args.labels_only,
     )
-    scored = score_records(records, config=config)
+
+    if args.judge_decisions:
+        # Offline flow: apply externally produced judge decisions, then let the
+        # scorer carry them through via its explicit-label short-circuits.
+        records = apply_judge_decisions(records, load_judge_decisions(args.judge_decisions))
+        scored = score_records(records, config=config)
+    else:
+        judge_call = None
+        if args.judge_endpoint:
+            judge_call = openai_compatible_judge(
+                args.judge_endpoint,
+                args.judge_model,
+                api_key_env=args.judge_api_key_env,
+            )
+        evaluator = HybridEvaluator(
+            similarity=get_backend(args.similarity),
+            judge_call=judge_call,
+            config=config,
+        )
+        scored = evaluator.score_records(records)
+
     summary = aggregate_scores(scored, group_by=_group_by(args.group_by))
 
     if args.output:
@@ -96,6 +120,26 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--summary-csv", help="write trial-level aggregate summary as CSV")
     score_parser.add_argument("--conditions", help="write condition-level @3 CSV to this path")
     score_parser.add_argument("--group-by", default="method,model", help="comma-separated grouping fields")
+    score_parser.add_argument(
+        "--similarity",
+        choices=("auto", "jina", "difflib"),
+        default="auto",
+        help="similarity backend for the reconstruction signal (default: auto)",
+    )
+    score_parser.add_argument(
+        "--judge-endpoint",
+        help="base URL of an OpenAI-compatible judge (e.g. a self-hosted Llama-3.3-70B)",
+    )
+    score_parser.add_argument(
+        "--judge-model",
+        default="llama-3.3-70b-instruct",
+        help="model name passed to the judge endpoint",
+    )
+    score_parser.add_argument(
+        "--judge-api-key-env",
+        default="ROGUEPROMPT_JUDGE_API_KEY",
+        help="environment variable holding the judge API key",
+    )
     score_parser.add_argument("--judge-decisions", help="JSON/JSONL decisions from an external LLM judge")
     score_parser.add_argument("--labels-only", action="store_true", help="disable deterministic fallback heuristics")
     score_parser.add_argument("--reconstruction-threshold", type=float, default=0.55)

@@ -107,7 +107,7 @@ The evaluator works with JSON or JSONL records supplied by the user. Required in
 - `original_prompt`
 - `transformed_prompt`
 
-The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `DPF`, `PR`, `RAR`, `OTH` and `BI`.
+The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `BI`, `DPF`, `PR`, `RAR`, and `OTH`.
 
 ```bash
 rogueprompt-evaluate validate path/to/evaluation_records.jsonl
@@ -115,10 +115,35 @@ rogueprompt-evaluate score path/to/evaluation_records.jsonl --summary-json summa
 rogueprompt-evaluate score path/to/evaluation_records.jsonl --conditions conditions.csv
 ```
 
-Create classification-only judge requests for an external LLM judge:
+### Hybrid evaluator
+
+The scoring pipeline follows the staged, hybrid labeling procedure described in the paper: a rule-based bypass check, a semantic-similarity signal, and an LLM judge that assigns the reconstruction, execution, and failure-mode labels.
+
+- **Similarity signal (`--similarity`).** The `jina` backend embeds the original request (`retrieval.query`) and chunks of the model response (`retrieval.passage`) with `jinaai/jina-embeddings-v3` and supplies the maximum and top-three mean cosine similarity as advisory signals to the judge. Install it with the `embeddings` extra:
+
+  ```bash
+  pip install -e '.[embeddings]'
+  ```
+
+  The default `auto` backend uses `jina` when it is installed and otherwise falls back to a dependency-free `difflib` approximation, so the package runs without the model. The `difflib` fallback is an approximation and does not reproduce the paper's reported rates.
+
+- **LLM judge (`--judge-endpoint`).** Point the evaluator at an OpenAI-compatible endpoint (e.g. a self-hosted `Llama-3.3-70B-Instruct` deployment, as in the paper). The judge receives the original prompt, full response, and the auxiliary signals; the transformed attack prompt and the target-model/provider identities are withheld. Install the client with the `judge` extra and pass the API key via an environment variable:
+
+  ```bash
+  pip install -e '.[judge]'
+  export ROGUEPROMPT_JUDGE_API_KEY=...   # read from the env, never passed as a flag
+  rogueprompt-evaluate score records.jsonl --similarity jina \
+      --judge-endpoint https://your-deployment/v1 --judge-model llama-3.3-70b-instruct \
+      --summary-json summary.json
+  ```
+
+Without `--judge-endpoint`, the evaluator uses the deterministic fallback (similarity threshold plus refusal patterns) so it still runs offline. Install both extras with `pip install -e '.[all]'`.
+
+Alternatively, generate classification-only judge requests for an external judge and apply the returned decisions:
 
 ```bash
 rogueprompt-evaluate judge-requests path/to/evaluation_records.jsonl --output judge_requests.jsonl
+rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-decisions decisions.jsonl --summary-json summary.json
 ```
 
 ## Verification
