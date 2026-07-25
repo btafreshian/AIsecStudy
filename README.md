@@ -35,7 +35,7 @@ pip install -e .
 
 ## Prompt Transformations
 
-The full method splits a source prompt into even- and odd-indexed word streams, encrypts the odd stream with the Vigenere key `RESEARCH`, places reconstruction instructions around the split text, and applies an outer ROT13 layer.
+The full method normalises the source prompt to NFC, splits it into even- and odd-indexed word streams, encrypts the odd stream with the Vigenere key `RESEARCH` (ASCII letters only; other characters pass through unchanged), places reconstruction instructions around the split text, and applies an outer ROT13 layer.
 
 ```python
 from rogueprompt.transforms import generate_rogueprompt
@@ -60,7 +60,7 @@ The six ablations correspond to the paper's leave-one-component-out and single-c
 | Ablation study | `data/rogueprompt_no_rot13.json`, `data/rogueprompt_no_splitting.json`, `data/rogueprompt_no_vigenere.json`, `data/rogueprompt_rot13_only.json`, `data/rogueprompt_splitting_only.json`, `data/rogueprompt_vigenere_only.json` |
 | Baselines | `data/baseline_prompts.json` |
 | Scoring protocol | `rogueprompt/schema.py`, `rogueprompt/scorers.py`, `rogueprompt/aggregate.py`, `rogueprompt/judge.py`, `rogueprompt-evaluate` |
-| Reported rates | Recomputed by applying the evaluator to a completed evaluation record set |
+| Reported rates | Not reproducible from this repository: no evaluation records are included. The evaluator here reproduces the paper's labeling procedure but requires a completed record set (model responses) to run, which is not released. |
 
 ## Data Files
 
@@ -107,7 +107,7 @@ The evaluator works with JSON or JSONL records supplied by the user. Required in
 - `original_prompt`
 - `transformed_prompt`
 
-The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `BI`, `DPF`, `PR`, `RAR`, and `OTH`.
+The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `BI`, `DPF`, `PR`, `RAR`, and `OTH`. `PR` (partial reconstruction) is a graded judgment produced only by the LLM judge or an explicit record label; the deterministic fallback scores reconstruction as a boolean and cannot distinguish partial from failed recovery, so offline it emits only `BI`, `DPF`, `RAR`, and `OTH`.
 
 ```bash
 rogueprompt-evaluate validate path/to/evaluation_records.jsonl
@@ -121,25 +121,25 @@ The scoring pipeline follows the staged, hybrid labeling procedure described in 
 
 - **Similarity signal (`--similarity`).** The `jina` backend embeds the original request (`retrieval.query`) and chunks of the model response (`retrieval.passage`) with `jinaai/jina-embeddings-v3` and supplies the maximum and top-three mean cosine similarity as advisory signals to the judge. Install it with the `embeddings` extra:
 
-  ```bash
+```bash
   pip install -e '.[embeddings]'
-  ```
+```
 
   The default `auto` backend uses `jina` when it is installed and otherwise falls back to a dependency-free `difflib` approximation, so the package runs without the model. The `difflib` fallback is an approximation and does not reproduce the paper's reported rates.
 
 - **LLM judge (`--judge-endpoint`).** Point the evaluator at an OpenAI-compatible endpoint (e.g. a self-hosted `Llama-3.3-70B-Instruct` deployment, as in the paper). The judge receives the original prompt, full response, and the auxiliary signals; the transformed attack prompt and the target-model/provider identities are withheld. Install the client with the `judge` extra and pass the API key via an environment variable:
 
-  ```bash
+```bash
   pip install -e '.[judge]'
   export ROGUEPROMPT_JUDGE_API_KEY=...   # read from the env, never passed as a flag
   rogueprompt-evaluate score records.jsonl --similarity jina \
       --judge-endpoint https://your-deployment/v1 --judge-model llama-3.3-70b-instruct \
       --summary-json summary.json
-  ```
+```
 
 Without `--judge-endpoint`, the evaluator uses the deterministic fallback (similarity threshold plus refusal patterns) so it still runs offline. Install both extras with `pip install -e '.[all]'`.
 
-Alternatively, generate classification-only judge requests for an external judge and apply the returned decisions:
+Create classification-only judge requests for an external LLM judge:
 
 ```bash
 rogueprompt-evaluate judge-requests path/to/evaluation_records.jsonl --output judge_requests.jsonl
@@ -148,13 +148,27 @@ rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-decisions de
 
 ## Verification
 
-Run these checks before publishing:
+Confirm every RoguePrompt variant file regenerates from the released code:
 
 ```bash
-python -m compileall -q rogueprompt
+python - <<'PY'
+import json
+from rogueprompt import transforms as T
+gens = {
+  "rogueprompt_original":       T.generate_rogueprompt,
+  "rogueprompt_no_rot13":       T.generate_no_rot13_prompt,
+  "rogueprompt_no_splitting":   T.generate_no_splitting_prompt,
+  "rogueprompt_no_vigenere":    T.generate_no_vigenere_prompt,
+  "rogueprompt_rot13_only":     T.generate_rot13_only_prompt,
+  "rogueprompt_splitting_only": T.generate_splitting_only_prompt,
+  "rogueprompt_vigenere_only":  T.generate_vigenere_only_prompt,
+}
+for name, fn in gens.items():
+    rows = json.load(open(f"data/{name}.json"))
+    bad = [r["index"] for r in rows if fn(r["forbidden_prompt"]) != r["jailbroken_prompt"]]
+    print(name, len(rows), "stale:", bad or "none")
+PY
 ```
-
-Also confirm that all seven RoguePrompt variant files have 313 records and matching source metadata.
 
 ## Attribution
 
