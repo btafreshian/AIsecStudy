@@ -1,6 +1,9 @@
 # RoguePrompt
 
 This repository accompanies **RoguePrompt: Dual-Layer Encoding for Self-Reconstruction to Circumvent LLM Moderation**.
+It contains the prompt construction code, the prompt files used for the
+paper-side comparisons, and the evaluation protocol applied to user-supplied
+response records.
 
 ## Contents
 
