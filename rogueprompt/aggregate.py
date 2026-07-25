@@ -121,7 +121,6 @@ def aggregate_at3(
 
 
 def write_summary_csv(rows: list[Record], path: str | Path) -> None:
-    """Write aggregate rows to CSV."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = list(rows[0].keys()) if rows else []

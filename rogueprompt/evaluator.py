@@ -1,13 +1,13 @@
-"""Hybrid evaluator combining rule-based signals, embedding similarity, and a judge.
+"""Hybrid evaluator: rule-based signals, embedding similarity, and a judge.
 
-This mirrors the labeling procedure in Section 5.2. Bypass is decided from an
-observable service-level block signal. For accepted responses, regex/lexical
-signals and embedding-similarity signals are computed and supplied to an LLM
-judge that returns binary reconstruction and execution decisions plus a
-failure-mode label. When no judge callable is configured, a deterministic
-fallback uses the similarity signal and refusal patterns so the pipeline still
-runs offline, and records that already carry explicit boolean labels are
-honored without recomputation.
+Bypass comes straight from the observable service-level block signal. For
+anything that got through, the lexical and similarity signals are computed and
+handed to an LLM judge, which returns the reconstruction and execution
+booleans and a failure mode.
+
+Records that already carry explicit labels are taken as-is. With no judge
+configured, a deterministic fallback uses the similarity signal plus the
+refusal patterns so the pipeline still runs offline.
 """
 
 from __future__ import annotations
@@ -32,16 +32,9 @@ from .semantic import SimilarityBackend, SimilaritySignals, get_backend
 class HybridEvaluator:
     """Score records with the paper's hybrid labeling procedure.
 
-    Parameters
-    ----------
-    similarity:
-        Similarity backend for the auxiliary signal. Defaults to the ``"auto"``
-        backend (embeddings when installed, otherwise the difflib fallback).
-    judge_call:
-        Optional callable mapping a judge prompt to raw judge text. When absent,
-        the deterministic fallback is used.
-    config:
-        Thresholds for the deterministic fallback.
+    similarity defaults to the "auto" backend: embeddings when installed,
+    difflib otherwise. judge_call maps a judge prompt to the judge's raw text
+    reply; without one, scoring falls back to the thresholds in config.
     """
 
     similarity: SimilarityBackend | None = None
@@ -58,7 +51,7 @@ class HybridEvaluator:
         return self.similarity.signals(original, response)
 
     def score(self, record: Record) -> Record:
-        """Return a copy of ``record`` with staged score fields attached."""
+        """Return a copy of the record with the staged score fields attached."""
         scored = dict(record)
 
         bypass = score_bypass(record)
@@ -120,7 +113,6 @@ class HybridEvaluator:
         return reconstruction, execution, failure
 
     def score_records(self, records: list[Record]) -> list[Record]:
-        """Score a list of evaluation records."""
         return [self.score(record) for record in records]
 
 

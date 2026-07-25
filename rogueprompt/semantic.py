@@ -1,22 +1,17 @@
-"""Semantic similarity signals for the hybrid evaluator.
+"""Similarity signals for the hybrid evaluator.
 
-Section 5.2 of the paper supplies two continuous similarity signals to the LLM
-judge: the maximum and the top-three mean cosine similarity between the original
-request and chunks of the model response, computed with
-``jinaai/jina-embeddings-v3`` over 1,024-dimensional L2-normalized embeddings.
-The original request is embedded with the ``retrieval.query`` adapter and the
-response chunks with ``retrieval.passage``.
+Two signals per record: the max and the top-three mean cosine similarity
+between the original request and chunks of the model response. JinaBackend
+computes them with jina-embeddings-v3 over 1024-dimensional L2-normalized
+embeddings, using the query adapter for the request and the passage adapter
+for the chunks. DifflibBackend approximates the same two numbers with no
+dependencies, so the package still runs without the model.
 
-This module provides that signal via :class:`JinaBackend` when the optional
-``embeddings`` dependencies are installed, and a dependency-free
-:class:`DifflibBackend` fallback so the package remains usable without the
-model. Neither backend assigns a label on its own; the signals are advisory
-inputs to the judge (or, in offline mode, to the deterministic reconstruction
-threshold).
+Neither backend labels anything. The signals are advisory input to the judge,
+or to the reconstruction threshold when running offline.
 
-All heavy imports (``sentence_transformers``, ``numpy``) are performed lazily
-inside methods so that importing this module and running ``compileall`` never
-require the optional dependencies.
+sentence_transformers and numpy are imported inside the methods that need
+them, so importing this module never pulls in the optional extras.
 """
 
 from __future__ import annotations
@@ -50,7 +45,7 @@ EMPTY_SIGNALS = SimilaritySignals(0.0, 0.0, 0)
 
 
 def chunk_text(text: str, max_chars: int = DEFAULT_CHUNK_CHARS) -> list[str]:
-    """Split ``text`` into sentence-aware chunks of at most ``max_chars`` characters."""
+    """Split text on sentence boundaries into chunks of at most max_chars."""
     text = re.sub(r"\s+", " ", text or "").strip()
     if not text:
         return []
@@ -99,11 +94,11 @@ class SimilarityBackend(Protocol):
 
 
 class DifflibBackend:
-    """Dependency-free fallback using :class:`difflib.SequenceMatcher`.
+    """Dependency-free fallback built on difflib.SequenceMatcher.
 
-    Chunking and the max/top-three-mean reduction mirror :class:`JinaBackend`
-    so the two backends produce structurally comparable signals; only the
-    per-chunk similarity function differs (character-ratio vs. cosine).
+    Chunking and the max/top-three-mean reduction match JinaBackend, so the
+    two return comparable shapes. Only the per-chunk score differs: character
+    ratio here, cosine there.
     """
 
     name = "difflib"
@@ -125,10 +120,9 @@ class DifflibBackend:
 
 
 class JinaBackend:
-    """Embedding similarity using ``jinaai/jina-embeddings-v3``.
+    """Embedding similarity using jinaai/jina-embeddings-v3.
 
-    Requires the ``embeddings`` extra (``sentence-transformers`` and its
-    dependencies). The model is loaded lazily on first use.
+    Needs the embeddings extra. The model loads on first use.
     """
 
     name = "jina"
@@ -153,10 +147,9 @@ class JinaBackend:
 
     def _encode(self, texts: list[str], task: str):
         model = self._load()
-        # jina-embeddings-v3 selects a task LoRA adapter via the ``task`` kwarg
-        # and supports Matryoshka truncation via ``truncate_dim``. Both are
-        # accepted by recent sentence-transformers releases; degrade from most-
-        # to least-specific so older versions still return an embedding.
+        # task picks the LoRA adapter, truncate_dim does Matryoshka truncation.
+        # Older sentence-transformers releases reject one or both kwargs, so
+        # fall back through the variants until one is accepted.
         for kwargs in (
             {"task": task, "truncate_dim": self.truncate_dim, "normalize_embeddings": True},
             {"task": task, "normalize_embeddings": True},
@@ -178,7 +171,7 @@ class JinaBackend:
 
         query_vec = np.asarray(self._encode([query], "retrieval.query"))[0]
         passage_vecs = np.asarray(self._encode(chunks, "retrieval.passage"))
-        # Embeddings are L2-normalized, so the dot product is the cosine.
+        # L2-normalized, so the dot product is already the cosine.
         sims = passage_vecs @ query_vec
         return _summarize([float(value) for value in sims], len(chunks))
 
@@ -186,10 +179,9 @@ class JinaBackend:
 def get_backend(name: str = "auto", max_chars: int = DEFAULT_CHUNK_CHARS) -> SimilarityBackend:
     """Return a similarity backend by name.
 
-    ``"auto"`` uses :class:`JinaBackend` when ``sentence-transformers`` is
-    importable and otherwise falls back to :class:`DifflibBackend`. ``"jina"``
-    forces the embedding backend and raises :class:`ImportError` if the extra is
-    missing; ``"difflib"`` forces the fallback.
+    "auto" takes JinaBackend if sentence-transformers imports, DifflibBackend
+    otherwise. "jina" forces the embedding backend and raises ImportError when
+    the extra is missing. "difflib" forces the fallback.
     """
     import importlib.util
 

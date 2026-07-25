@@ -33,15 +33,15 @@ pip install -e .
 
 ## Prompt Transformations
 
-The full method implements the formal Section 4.2 pipeline:
+The full method runs seven steps:
 
 1. Normalize the source prompt to Unicode NFC.
-2. Segment it losslessly into text spans. Each non-leading span consists of one maximal non-whitespace sequence and all immediately following whitespace; leading whitespace, when present, is retained as its own span.
-3. Partition the spans by zero-based position into even and odd streams.
-4. Serialize each stream as `len(span):span`, separated by `|`, with lengths counted in Unicode code points.
-5. Encrypt only the serialized odd stream with the fixed Vigenere key `RESEARCH`. The cipher transforms ASCII letters only, preserves case, leaves other characters unchanged, and advances the key only for transformed letters.
+2. Cut it into spans. A span is one run of non-whitespace plus the whitespace after it; any whitespace at the very start becomes its own span, since it has no word to attach to. The spans concatenate back to the input exactly.
+3. Deal the spans into an even and an odd stream by position, counting from zero.
+4. Write each stream out as `len(span):span` entries joined by `|`. Lengths are in Unicode code points.
+5. Encrypt the serialized odd stream with the Vigenere key `RESEARCH`. Only ASCII letters are shifted; case is preserved and the key advances only on the letters it shifts, so the length prefixes and separators survive intact.
 6. Assemble `EVEN=<serialized-even>;ODD=<encrypted-serialized-odd>;KEY=<key>;ORDER=0-even`.
-7. Apply ROT13 to the assembled payload, leaving the visible reconstruction wrapper unchanged.
+7. ROT13 the whole payload. The reconstruction instructions around it stay in plain text.
 
 ```python
 from rogueprompt.transforms import generate_rogueprompt

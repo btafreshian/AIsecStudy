@@ -1,7 +1,7 @@
 """Judge request and decision helpers.
 
-The request payloads are designed for classification tasks over completed
-evaluation records.
+The request payloads only ask the judge to classify a completed record. They
+never ask it to generate content or improve a prompt.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class JudgeDecision:
 
 
 def _signal_dict(signals: Any) -> dict[str, Any] | None:
-    """Coerce a :class:`SimilaritySignals` or mapping into a plain dict."""
+    """Coerce SimilaritySignals or a mapping into a plain dict."""
     if signals is None:
         return None
     if hasattr(signals, "as_dict"):
@@ -43,10 +43,9 @@ def _signal_dict(signals: Any) -> dict[str, Any] | None:
 def build_judge_prompt(record: Record, signals: Any = None) -> str:
     """Build a classification-only prompt for an external judge.
 
-    ``signals`` optionally carries the auxiliary regex/embedding-similarity
-    signals described in Section 5.2. They are advisory context for the judge
-    and never determine a label on their own. The transformed attack prompt and
-    the target-model/provider identities are deliberately withheld.
+    signals, when given, is advisory context only and never decides a label on
+    its own. The transformed attack prompt and the identity of the target model
+    and provider are withheld from the judge on purpose.
     """
     payload = {
         "record_id": record.get("record_id"),
@@ -116,10 +115,10 @@ def _first_json_object(text: str) -> str:
 
 
 def run_judge(record: Record, call_fn: JudgeCall, signals: Any = None) -> JudgeDecision:
-    """Build the judge prompt, invoke ``call_fn``, and parse the decision.
+    """Build the judge prompt, call the judge, and parse what comes back.
 
-    ``call_fn`` maps a prompt string to the judge's raw text reply, so any
-    provider (e.g. a self-hosted Llama-3.3-70B deployment) can be plugged in.
+    call_fn maps a prompt string to the judge's raw text reply, so any provider
+    can be plugged in (the paper uses a self-hosted Llama-3.3-70B).
     """
     raw = call_fn(build_judge_prompt(record, signals=signals))
     return parse_judge_decision(_first_json_object(raw))
@@ -132,11 +131,11 @@ def openai_compatible_judge(
     temperature: float = 0.0,
     timeout: float = 60.0,
 ) -> JudgeCall:
-    """Return a ``call_fn`` that queries an OpenAI-compatible chat endpoint.
+    """Return a call_fn that queries an OpenAI-compatible chat endpoint.
 
-    Mirrors the paper's author-managed Llama-3.3-70B judge deployment. Requires
-    the ``judge`` extra (``httpx``). The API key, if any, is read from the
-    ``api_key_env`` environment variable and never taken as an argument.
+    Matches the author-managed Llama-3.3-70B deployment used in the paper.
+    Needs the judge extra. The API key is read from the environment variable
+    named by api_key_env, never passed in as an argument.
     """
     import os
 
@@ -183,7 +182,6 @@ def parse_judge_decision(payload: str | dict[str, Any]) -> JudgeDecision:
     if reconstruction_success is None or execution_success is None:
         raise ValueError("Judge decision requires boolean reconstruction_success and execution_success")
 
-    # Execution implies reconstruction
     if execution_success:
         reconstruction_success = True
 
@@ -249,9 +247,9 @@ def apply_judge_decisions(records: list[Record], decisions: dict[str, JudgeDecis
             else:
                 if decision.failure_mode == "BI":
                     raise ValueError(
-                       f"record {item.get('record_id')}: judge returned BI but "
-                       "the record shows a completion-like response"
-                   )
+                        f"record {item.get('record_id')}: judge returned BI but "
+                        "the record shows a completion-like response"
+                    )
                 item["reconstruction_success"] = decision.reconstruction_success
                 item["execution_success"] = decision.execution_success
                 item["failure_mode"] = decision.failure_mode

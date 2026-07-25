@@ -40,7 +40,7 @@ class SchemaError(ValueError):
 
 
 def load_records(path: str | Path) -> list[Record]:
-    """Load records from a JSON list, ``{"records": [...]}``, or JSONL file."""
+    """Load records from a JSON list, a {"records": [...]} object, or JSONL."""
     input_path = Path(path)
     text = input_path.read_text(encoding="utf-8")
 
@@ -87,7 +87,6 @@ def validate_record(record: Record, index: int | None = None) -> list[str]:
 
 
 def validate_records(records: list[Record]) -> list[str]:
-    """Return all schema errors for a list of records."""
     errors: list[str] = []
     for index, record in enumerate(records):
         errors.extend(validate_record(record, index=index))
@@ -95,7 +94,7 @@ def validate_records(records: list[Record]) -> list[str]:
 
 
 def require_valid_records(records: list[Record]) -> list[Record]:
-    """Validate records and raise ``SchemaError`` on the first schema failure."""
+    """Validate records, raising SchemaError if any of them fail."""
     errors = validate_records(records)
     if errors:
         raise SchemaError("\n".join(errors))

@@ -59,8 +59,8 @@ def score_command(args: argparse.Namespace) -> int:
     )
 
     if args.judge_decisions:
-        # Offline flow: apply externally produced judge decisions, then let the
-        # scorer carry them through via its explicit-label short-circuits.
+        # Offline flow: attach the external decisions first, then let the
+        # scorer pick them up through its explicit-label short-circuits.
         records = apply_judge_decisions(records, load_judge_decisions(args.judge_decisions))
         scored = score_records(records, config=config)
     else:

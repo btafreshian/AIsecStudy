@@ -9,7 +9,7 @@ from rogueprompt import transforms as T
 
 
 class CompatibilityTests(unittest.TestCase):
-    def test_legacy_word_split_helper_is_unchanged(self) -> None:
+    def test_legacy_word_split_still_works(self) -> None:
         self.assertEqual(T.split_even_odd_words("alpha  beta\ngamma"), ("alpha gamma", "beta"))
 
 
@@ -119,7 +119,7 @@ class FullRoundTripTests(unittest.TestCase):
                 self.assertEqual(T.reconstruct_rogueprompt(prompt), expected)
 
     def test_random_round_trips(self) -> None:
-        rng = random.Random(20260725)
+        rng = random.Random(1337)
         alphabet = string.ascii_letters + string.digits + " |:;,.!?é🙂\t\n"
         checked = 0
         while checked < 500:
