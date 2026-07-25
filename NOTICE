@@ -8,7 +8,7 @@ data/source_prompts.json reproduces the 313-prompt StrongREJECT benchmark
 (Souly et al., 2024, arXiv:2402.10260).
 
   Source repository: https://github.com/alexandrasouly/strongreject
-  (maintained continuation: https://github.com/dsbowen/strong_reject)
+  (companion Python package: https://github.com/dsbowen/strong_reject)
 
 StrongREJECT releases its code and custom-generated prompts under the MIT
 License, reproduced below. Dataset questions sourced from prior work remain
@@ -20,9 +20,7 @@ repository for the authoritative per-source licensing.
 The `category`, `source`, and `forbidden_prompt` fields are reproduced from
 StrongREJECT. The `index` field is added by this work as a stable join key.
 
-If any portion of this dataset is treated as licensed under CC-BY (per the
-StrongREJECT project metadata), attribution is provided by this notice and
-by the citation below.
+Work that uses this data should cite StrongREJECT:
 
   @misc{souly2024strongrejectjailbreaks,
       title={A StrongREJECT for Empty Jailbreaks},
