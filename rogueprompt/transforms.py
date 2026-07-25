@@ -13,18 +13,6 @@ ENCODED_PAYLOAD_MARKER = "Encoded payload:\n"
 PLAIN_PAYLOAD_MARKER = "Payload:\n"
 
 
-def split_even_odd_words(input_text: str) -> tuple[str, str]:
-    """Split text into even- and odd-indexed words.
-
-    Superseded by the span functions below, which round-trip exactly. Kept
-    because the earlier prompt sets were built with it.
-    """
-    words = input_text.split()
-    even_words = words[::2]
-    odd_words = words[1::2]
-    return " ".join(even_words), " ".join(odd_words)
-
-
 def _vigenere(text: str, key: str, direction: int) -> str:
     """Shift ASCII letters by the key; direction is 1 to encrypt, -1 to decrypt."""
     out: list[str] = []

@@ -15,6 +15,10 @@ tmp/
 output/
 *.log
 
+# Paper sources and built PDFs. The submission is reviewed anonymously through
+# the artifact mirror linked in the paper, so it does not belong in this repo.
+*.pdf
+
 *response*.json
 *responses*.json
 *evaluated*.json

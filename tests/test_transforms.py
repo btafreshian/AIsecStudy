@@ -8,11 +8,6 @@ import unicodedata
 from rogueprompt import transforms as T
 
 
-class CompatibilityTests(unittest.TestCase):
-    def test_legacy_word_split_still_works(self) -> None:
-        self.assertEqual(T.split_even_odd_words("alpha  beta\ngamma"), ("alpha gamma", "beta"))
-
-
 class SegmentationTests(unittest.TestCase):
     def test_toy_segmentation_and_partition(self) -> None:
         spans = T.segment_text("bring blue pens today")

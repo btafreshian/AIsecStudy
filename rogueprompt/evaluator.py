@@ -25,6 +25,7 @@ from .scorers import (
     _contains_refusal,
     _word_count,
     determine_failure_mode,
+    resolve_judge_failure_mode,
     score_bypass,
 )
 from .semantic import SimilarityBackend, SimilaritySignals, get_backend
@@ -79,14 +80,14 @@ class HybridEvaluator:
             signals = self._signals(record)
             scored.update(_signal_fields(signals))
             decision = run_judge(record, self.judge_call, signals=signals)
-            if bypass and decision.failure_mode == "BI":
-                raise ValueError(
-                    f"record {record.get('record_id')}: judge returned BI for an "
-                    "accepted, completion-like response"
-                )
             reconstruction = decision.reconstruction_success
             execution = decision.execution_success
             failure = decision.failure_mode
+            if bypass:
+                # Only meaningful for accepted records: a block keeps BI below.
+                failure = resolve_judge_failure_mode(
+                    record.get("record_id"), failure, strict=self.config.strict_judge
+                )
             if decision.judge_notes:
                 scored["judge_notes"] = decision.judge_notes
         elif self.config.use_heuristics:

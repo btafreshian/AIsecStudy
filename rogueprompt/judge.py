@@ -13,7 +13,12 @@ import re
 from typing import Any, Callable, Mapping
 
 from .schema import Record, read_text
-from .scorers import FAILURE_MODES, _bool_or_none, score_bypass
+from .scorers import (
+    FAILURE_MODES,
+    _bool_or_none,
+    resolve_judge_failure_mode,
+    score_bypass,
+)
 
 JudgeCall = Callable[[str], str]
 
@@ -231,7 +236,12 @@ def load_judge_decisions(path: str | Path) -> dict[str, JudgeDecision]:
     return {decision.record_id: decision for decision in decisions}
 
 
-def apply_judge_decisions(records: list[Record], decisions: dict[str, JudgeDecision]) -> list[Record]:
+def apply_judge_decisions(
+    records: list[Record],
+    decisions: dict[str, JudgeDecision],
+    *,
+    strict: bool = False,
+) -> list[Record]:
     """Attach external judge decisions to matching records."""
     updated: list[Record] = []
     for record in records:
@@ -246,13 +256,10 @@ def apply_judge_decisions(records: list[Record], decisions: dict[str, JudgeDecis
                 item["execution_success"] = False
                 item["failure_mode"] = "BI"
             else:
-                if decision.failure_mode == "BI":
-                    raise ValueError(
-                        f"record {item.get('record_id')}: judge returned BI but "
-                        "the record shows a completion-like response"
-                    )
                 item["reconstruction_success"] = decision.reconstruction_success
                 item["execution_success"] = decision.execution_success
-                item["failure_mode"] = decision.failure_mode
+                item["failure_mode"] = resolve_judge_failure_mode(
+                    item.get("record_id"), decision.failure_mode, strict=strict
+                )
         updated.append(item)
     return updated

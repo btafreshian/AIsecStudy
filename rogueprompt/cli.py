@@ -65,12 +65,17 @@ def score_command(args: argparse.Namespace) -> int:
         reconstruction_threshold=args.reconstruction_threshold,
         min_execution_words=args.min_execution_words,
         use_heuristics=not args.labels_only,
+        strict_judge=args.strict,
     )
 
     if args.judge_decisions:
         # Offline flow: attach the external decisions first, then let the
         # scorer pick them up through its explicit-label short-circuits.
-        records = apply_judge_decisions(records, load_judge_decisions(args.judge_decisions))
+        records = apply_judge_decisions(
+            records,
+            load_judge_decisions(args.judge_decisions),
+            strict=args.strict,
+        )
         scored = score_records(records, config=config)
     else:
         judge_call = None
@@ -152,6 +157,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     score_parser.add_argument("--judge-decisions", help="JSON/JSONL decisions from an external LLM judge")
     score_parser.add_argument("--labels-only", action="store_true", help="disable deterministic fallback heuristics")
+    score_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="stop on a judge BI for an accepted response instead of relabeling it OTH",
+    )
     score_parser.add_argument("--reconstruction-threshold", type=float, default=0.55)
     score_parser.add_argument("--min-execution-words", type=int, default=8)
     score_parser.set_defaults(func=score_command)
