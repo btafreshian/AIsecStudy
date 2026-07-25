@@ -12,6 +12,8 @@ It contains the prompt construction code, the prompt JSON files used for the pap
 - `data/rogueprompt_*.json`: full method and six ablation prompt sets.
 - `data/baseline_prompts.json`: five baseline prompt columns used for comparison.
 - `ETHICS.md`: responsible-use notes.
+- `NOTICE`: third-party data licensing and attribution (StrongREJECT)
+- `LICENSE`: MIT license for the project
 
 ## Setup
 
@@ -105,11 +107,12 @@ The evaluator works with JSON or JSONL records supplied by the user. Required in
 - `original_prompt`
 - `transformed_prompt`
 
-The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `DPF`, `PR`, `RAR`, and `OTH`.
+The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `DPF`, `PR`, `RAR`, `OTH` and `BI`.
 
 ```bash
 rogueprompt-evaluate validate path/to/evaluation_records.jsonl
 rogueprompt-evaluate score path/to/evaluation_records.jsonl --summary-json summary.json
+rogueprompt-evaluate score path/to/evaluation_records.jsonl --conditions conditions.csv
 ```
 
 Create classification-only judge requests for an external LLM judge:
@@ -127,3 +130,11 @@ python -m compileall -q rogueprompt
 ```
 
 Also confirm that all seven RoguePrompt variant files have 313 records and matching source metadata.
+
+## Attribution
+
+The source prompts are the StrongREJECT benchmark (Souly et al., 2024),
+313 prompts across six categories. See NOTICE for licensing and citation.
+
+Baseline transformations follow Zeng et al. (PAP), Kang et al. (auto payload
+splitting), and StrongREJECT (disemvowel, base64 raw).
