@@ -1,6 +1,6 @@
 # RoguePrompt
 
-This repository accompanies **RoguePrompt: Dual-Layer Encoding for Self-Reconstruction to Circumvent LLM Moderation**
+This repository accompanies **RoguePrompt: Dual-Layer Encoding for Self-Reconstruction to Circumvent LLM Moderation**.
 
 ## Contents
 
