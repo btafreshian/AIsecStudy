@@ -33,7 +33,15 @@ pip install -e .
 
 ## Prompt Transformations
 
-The full method normalises the source prompt to NFC, splits it into even- and odd-indexed word streams, encrypts the odd stream with the Vigenere key `RESEARCH` (ASCII letters only; other characters pass through unchanged), places reconstruction instructions around the split text, and applies an outer ROT13 layer.
+The full method implements the formal Section 4.2 pipeline:
+
+1. Normalize the source prompt to Unicode NFC.
+2. Segment it losslessly into text spans. Each non-leading span consists of one maximal non-whitespace sequence and all immediately following whitespace; leading whitespace, when present, is retained as its own span.
+3. Partition the spans by zero-based position into even and odd streams.
+4. Serialize each stream as `len(span):span`, separated by `|`, with lengths counted in Unicode code points.
+5. Encrypt only the serialized odd stream with the fixed Vigenere key `RESEARCH`. The cipher transforms ASCII letters only, preserves case, leaves other characters unchanged, and advances the key only for transformed letters.
+6. Assemble `EVEN=<serialized-even>;ODD=<encrypted-serialized-odd>;KEY=<key>;ORDER=0-even`.
+7. Apply ROT13 to the assembled payload, leaving the visible reconstruction wrapper unchanged.
 
 ```python
 from rogueprompt.transforms import generate_rogueprompt
@@ -146,6 +154,29 @@ rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-decisions de
 
 ## Verification
 
+Run the transformation tests:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Confirm exact round-trip reconstruction for all source prompts:
+
+```bash
+python - <<'PY'
+import json
+import unicodedata
+from rogueprompt import transforms as T
+
+rows = json.load(open("data/source_prompts.json", encoding="utf-8"))
+for row in rows:
+    prompt = T.generate_rogueprompt(row["forbidden_prompt"])
+    recovered = T.reconstruct_rogueprompt(prompt)
+    assert recovered == unicodedata.normalize("NFC", row["forbidden_prompt"])
+print("round trips:", len(rows))
+PY
+```
+
 Confirm every RoguePrompt variant file regenerates from the released code:
 
 ```bash
@@ -162,7 +193,7 @@ gens = {
   "rogueprompt_vigenere_only":  T.generate_vigenere_only_prompt,
 }
 for name, fn in gens.items():
-    rows = json.load(open(f"data/{name}.json"))
+    rows = json.load(open(f"data/{name}.json", encoding="utf-8"))
     bad = [r["index"] for r in rows if fn(r["forbidden_prompt"]) != r["jailbroken_prompt"]]
     print(name, len(rows), "stale:", bad or "none")
 PY
