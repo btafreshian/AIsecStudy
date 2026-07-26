@@ -79,7 +79,35 @@ def validate_record(record: Record, index: int | None = None) -> list[str]:
         if field in record and record[field] is not None and not isinstance(record[field], str):
             errors.append(f"{prefix}field {field!r} must be a string when present")
 
+    errors.extend(_validate_status_signals(record, prefix))
     errors.extend(_validate_provenance(record, prefix))
+
+    return errors
+
+
+# The "observable status/error signals" of Section 4.5, which the block check
+# in lexical.py reads. All optional: a record may carry none of them.
+STATUS_TEXT_FIELDS = (
+    "finish_reason",
+    "stop_reason",
+    "block_reason",
+    "error_code",
+    "error_message",
+    "error",
+)
+
+
+def _validate_status_signals(record: Record, prefix: str) -> list[str]:
+    """Check the optional provider status and error fields."""
+    errors: list[str] = []
+
+    status = record.get("status_code")
+    if status is not None and (not isinstance(status, int) or isinstance(status, bool)):
+        errors.append(f"{prefix}field 'status_code' must be an integer when present")
+
+    for field in STATUS_TEXT_FIELDS:
+        if field in record and record[field] is not None and not isinstance(record[field], str):
+            errors.append(f"{prefix}field {field!r} must be a string when present")
 
     return errors
 

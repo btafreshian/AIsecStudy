@@ -20,11 +20,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .judge import JudgeCall, run_judge
+from .lexical import clean_text
 from .schema import Record
 from .scorers import (
     ScoreConfig,
     _bool_or_none,
-    _clean_text,
     determine_failure_mode,
     require_label_source,
     resolve_judge_failure_mode,
@@ -39,8 +39,8 @@ def similarity_signals(backend: SimilarityBackend, record: Record) -> Similarity
     Shared by the integrated scoring path and the offline judge-request
     builder, so both hand the judge the same numbers.
     """
-    original = _clean_text(record.get("original_prompt"))
-    response = _clean_text(record.get("model_response"))
+    original = clean_text(record.get("original_prompt"))
+    response = clean_text(record.get("model_response"))
     return backend.signals(original, response)
 
 

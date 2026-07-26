@@ -28,6 +28,7 @@ import inspect
 
 from . import evaluator as _evaluator
 from . import judge as _judge
+from . import lexical as _lexical
 from . import scorers as _scorers
 from . import transforms as _transforms
 from .schema import Record
@@ -126,12 +127,34 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
         # 2.0 dropped the offline similarity/word-count labeler. Section 5.2
         # states the continuous signals "did not independently determine a
         # label", and the paper defines no offline stand-in for the judge.
+        # 3.0 moved the Section 5.2 regex and lexical checks into the code:
+        # block detection reads the provider status/error fields instead of
+        # trusting a supplied boolean, and the judge now receives the regex
+        # signals next to the similarity ones.
         "evaluator",
-        "2.0",
+        "3.0",
         (
             _const("scorers.FAILURE_MODES", _scorers.FAILURE_MODES),
             _const("scorers.FAILURE_PRIORITY", _scorers.FAILURE_PRIORITY),
-            _const("scorers._REFUSAL_PATTERNS", _scorers._REFUSAL_PATTERNS),
+            _const("lexical.REFUSAL_PATTERNS", _lexical.REFUSAL_PATTERNS),
+            _const(
+                "lexical.SERVICE_BLOCK_ERROR_PATTERNS",
+                _lexical.SERVICE_BLOCK_ERROR_PATTERNS,
+            ),
+            _const(
+                "lexical.SERVICE_BLOCK_RESPONSE_PATTERNS",
+                _lexical.SERVICE_BLOCK_RESPONSE_PATTERNS,
+            ),
+            _const(
+                "lexical.RECONSTRUCTION_ERROR_PATTERNS",
+                _lexical.RECONSTRUCTION_ERROR_PATTERNS,
+            ),
+            _const("lexical.BLOCKING_STOP_REASONS", sorted(_lexical.BLOCKING_STOP_REASONS)),
+            _const("lexical.RETRYABLE_STATUS_CODES", sorted(_lexical.RETRYABLE_STATUS_CODES)),
+            _lexical.detect_service_block,
+            _lexical.find_refusal,
+            _lexical.find_reconstruction_error,
+            _lexical.lexical_signals,
             _scorers.ScoreConfig,
             _scorers.score_bypass,
             _scorers.score_reconstruction,
@@ -140,7 +163,6 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
             _scorers.determine_failure_mode,
             _scorers.resolve_judge_failure_mode,
             _scorers.require_label_source,
-            _scorers._contains_refusal,
             _judge.build_judge_prompt,
             _judge.parse_judge_decision,
             _judge.apply_judge_decisions,
