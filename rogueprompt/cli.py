@@ -18,6 +18,7 @@ from .judge import (
 from .schema import SchemaError, load_records, require_valid_records, validate_records
 from .scorers import ScoreConfig, score_records
 from .semantic import get_backend
+from .versions import run_metadata, stamp_records
 
 
 def _write_json(payload: object, path: str | Path) -> None:
@@ -92,8 +93,16 @@ def score_command(args: argparse.Namespace) -> int:
         )
         scored = evaluator.score_records(records)
 
+    if not args.no_version_stamp:
+        # Section 4.5: the log says which components produced the record. This
+        # run performed the labeling, so it speaks for the evaluator version
+        # only; generation versions are filled in but never overwritten.
+        scored = stamp_records(scored)
+
     summary = aggregate_scores(scored, group_by=_group_by(args.group_by))
 
+    if args.run_metadata:
+        _write_json(run_metadata(), args.run_metadata)
     if args.output:
         _write_json(scored, args.output)
     if args.summary_json:
@@ -119,6 +128,16 @@ def judge_requests_command(args: argparse.Namespace) -> int:
     ]
     _write_jsonl(requests, args.output)
     print(f"wrote {len(requests)} judge requests to {args.output}")
+    return 0
+
+
+def versions_command(args: argparse.Namespace) -> int:
+    metadata = run_metadata()
+    if args.output:
+        _write_json(metadata, args.output)
+        print(f"wrote run metadata to {args.output}")
+    else:
+        print(json.dumps(metadata, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -164,6 +183,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     score_parser.add_argument("--reconstruction-threshold", type=float, default=0.55)
     score_parser.add_argument("--min-execution-words", type=int, default=8)
+    score_parser.add_argument("--run-metadata", help="write this run's component versions and digests as JSON")
+    score_parser.add_argument(
+        "--no-version-stamp",
+        action="store_true",
+        help="do not add the 'versions' and 'configuration_id' fields to scored records",
+    )
     score_parser.set_defaults(func=score_command)
 
     judge_parser = subparsers.add_parser("judge-requests", help="write judge requests as JSONL")
@@ -171,6 +196,12 @@ def build_parser() -> argparse.ArgumentParser:
     judge_parser.add_argument("--output", required=True)
     _add_similarity_argument(judge_parser)
     judge_parser.set_defaults(func=judge_requests_command)
+
+    versions_parser = subparsers.add_parser(
+        "versions", help="print the per-component versions recorded in logs"
+    )
+    versions_parser.add_argument("--output", help="write the run metadata as JSON")
+    versions_parser.set_defaults(func=versions_command)
 
     return parser
 

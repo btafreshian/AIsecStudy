@@ -19,6 +19,7 @@ separately collected data.
 
 - `rogueprompt/transforms.py`: RoguePrompt and ablation transformations.
 - `rogueprompt/schema.py`, `rogueprompt/scorers.py`, `rogueprompt/aggregate.py`, `rogueprompt/judge.py`, `rogueprompt/cli.py`: schema checks, staged scoring, aggregation, judge-request helpers, and CLI.
+- `rogueprompt/versions.py`: the per-component versions logs record.
 - `data/source_prompts.json`: 313 source prompts with category and source metadata.
 - `data/rogueprompt_*.json`: full method and six ablation prompt sets.
 - `data/baseline_prompts.json`: five baseline prompt columns used for comparison.
@@ -78,6 +79,7 @@ The six ablations correspond to the paper's leave-one-component-out and single-c
 | Ablation study | `data/rogueprompt_no_rot13.json`, `data/rogueprompt_no_splitting.json`, `data/rogueprompt_no_vigenere.json`, `data/rogueprompt_rot13_only.json`, `data/rogueprompt_splitting_only.json`, `data/rogueprompt_vigenere_only.json` |
 | Baselines | `data/baseline_prompts.json` |
 | Scoring protocol | `rogueprompt/schema.py`, `rogueprompt/scorers.py`, `rogueprompt/aggregate.py`, `rogueprompt/judge.py`, `rogueprompt-evaluate` |
+| Run provenance (§4.5) | `rogueprompt/versions.py`, `rogueprompt-evaluate versions` |
 | Reported rates | Not reproducible from this repository: no evaluation records are included. The evaluator here reproduces the paper's labeling procedure but requires a completed record set (model responses) to run, which is not released. |
 
 ## Data Files
@@ -125,6 +127,8 @@ The evaluator works with JSON or JSONL records supplied by the user. Required in
 - `original_prompt`
 - `transformed_prompt`
 
+The optional `versions` and `configuration_id` fields described under [Run Provenance](#run-provenance) are accepted on input and validated when present.
+
 The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `BI`, `DPF`, `PR`, `RAR`, and `OTH`. `PR` (partial reconstruction) is a graded judgment produced only by the LLM judge or an explicit record label; the deterministic fallback scores reconstruction as a boolean and cannot distinguish partial from failed recovery, so offline it emits only `BI`, `DPF`, `RAR`, and `OTH`.
 
 ```bash
@@ -167,6 +171,33 @@ Create classification-only judge requests for an external LLM judge. `judge-requ
 rogueprompt-evaluate judge-requests path/to/evaluation_records.jsonl --output judge_requests.jsonl --similarity jina
 rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-decisions decisions.jsonl --summary-json summary.json
 ```
+
+## Run Provenance
+
+Section 4.5 states that logs record "the wrapper, key, serialization, baseline template, parser, and evaluator versions". A single distribution version cannot carry that: the six components are fixed independently before a run, and a log has to say which of them produced a given record. `rogueprompt/versions.py` declares them separately.
+
+| Component | Covers |
+| --- | --- |
+| `wrapper` | the reconstruction instructions around the payload, for the full method and every ablation |
+| `key` | the fixed Vigenere key and the cipher that applies it |
+| `serialization` | NFC normalization, segmentation, the `len:span` streams, payload assembly, and the ROT13 layer |
+| `baseline_template` | the five baseline columns of `data/baseline_prompts.json` |
+| `parser` | payload parsing, deserialization, interleaving, and reconstruction |
+| `evaluator` | the label rules: bypass check, failure modes, refusal patterns, judge prompt, and `HybridEvaluator` |
+
+```bash
+rogueprompt-evaluate versions
+```
+
+Each component reports a declared `version`, the objects it `covers`, and a `digest` over their source. The declared versions alone determine `configuration_id`, the configuration identifier of Section 4.5, so the identifier stays computable for a record whose prompt was built by an earlier release. The digests determine `code_id`, which describes one installation. Two runs reporting the same `configuration_id` but different `code_id` values were labelled the same but did not run the same code, which is what catches an edit that landed without a version bump.
+
+`score` stamps every scored record with `versions` (the six component versions) and `configuration_id` (the identifier derived from them). A scoring run performed the labelling, so it always writes its own `evaluator` version; the generation components are filled in only when the record does not already carry them, so a record whose prompt was built by an earlier release keeps the wrapper version that actually built it. Pass `--no-version-stamp` to turn the stamp off, and `--run-metadata` to write the full block, digests included, alongside the run.
+
+```bash
+rogueprompt-evaluate score records.jsonl --output scored.json --run-metadata run.json
+```
+
+The prompt files in `data/` were generated under configuration `cfg-e24defdf5529`.
 
 ## Verification
 

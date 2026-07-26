@@ -79,6 +79,34 @@ def validate_record(record: Record, index: int | None = None) -> list[str]:
         if field in record and record[field] is not None and not isinstance(record[field], str):
             errors.append(f"{prefix}field {field!r} must be a string when present")
 
+    errors.extend(_validate_provenance(record, prefix))
+
+    return errors
+
+
+def _validate_provenance(record: Record, prefix: str) -> list[str]:
+    """Check the optional Section 4.5 version block.
+
+    Optional because records are collected by the user, and a run predating
+    the version block is still a valid record. The check is structural only:
+    which component names are meaningful is versions.py's business, and this
+    module stays below it so that module can import this one.
+    """
+    errors: list[str] = []
+
+    if "configuration_id" in record and not isinstance(record["configuration_id"], str):
+        errors.append(f"{prefix}field 'configuration_id' must be a string when present")
+
+    versions = record.get("versions")
+    if versions is None:
+        return errors
+    if not isinstance(versions, dict):
+        errors.append(f"{prefix}field 'versions' must be an object when present")
+    elif not all(
+        isinstance(name, str) and isinstance(value, str) for name, value in versions.items()
+    ):
+        errors.append(f"{prefix}field 'versions' must map component names to version strings")
+
     return errors
 
 
