@@ -54,6 +54,61 @@ class SerializationTests(unittest.TestCase):
                     T.deserialize_spans(serialized)
 
 
+class PaperDemoVectorTests(unittest.TestCase):
+    """The worked example of Section 4.2, reproduced exactly.
+
+    The paper prints every intermediate for I = "bring blue pens", so this
+    pins segmentation, parity, serialization, the cipher, assembly, and ROT13
+    against the published artifact rather than against our own expectations.
+    Any change here means the implementation and the paper have diverged.
+    """
+
+    INPUT = "bring blue pens"
+    KEY = "LIME"
+    SERIALIZED_EVEN = "6:bring |4:pens"
+    SERIALIZED_ODD = "5:blue "
+    ENCRYPTED_ODD = "5:mtgi "
+    PAYLOAD = "EVEN=6:bring |4:pens;ODD=5:mtgi ;KEY=LIME;ORDER=0-even"
+    ROT13_PAYLOAD = "RIRA=6:oevat |4:craf;BQQ=5:zgtv ;XRL=YVZR;BEQRE=0-rira"
+
+    def setUp(self) -> None:
+        self.spans = T.segment_text(self.INPUT)
+        self.even, self.odd = T.partition_even_odd(self.spans)
+
+    def test_segmentation_and_parity(self) -> None:
+        self.assertEqual(self.spans, ("bring ", "blue ", "pens"))
+        self.assertEqual(self.even, ("bring ", "pens"))
+        self.assertEqual(self.odd, ("blue ",))
+
+    def test_serialization(self) -> None:
+        self.assertEqual(T.serialize_spans(self.even), self.SERIALIZED_EVEN)
+        self.assertEqual(T.serialize_spans(self.odd), self.SERIALIZED_ODD)
+
+    def test_inner_vigenere_layer(self) -> None:
+        self.assertEqual(
+            T.vigenere_encrypt(self.SERIALIZED_ODD, self.KEY), self.ENCRYPTED_ODD
+        )
+
+    def test_assembled_and_rot13_payloads(self) -> None:
+        payload = T.assemble_payload(
+            self.SERIALIZED_EVEN, self.ENCRYPTED_ODD, self.KEY
+        )
+        self.assertEqual(payload, self.PAYLOAD)
+        self.assertEqual(T.apply_rot13(payload), self.ROT13_PAYLOAD)
+
+    def test_full_generation_carries_the_published_payload(self) -> None:
+        prompt = T.generate_rogueprompt(self.INPUT, key=self.KEY)
+        encoded = prompt.rsplit(T.ENCODED_PAYLOAD_MARKER, 1)[1].strip()
+        self.assertEqual(encoded, self.ROT13_PAYLOAD)
+
+    def test_round_trip_recovers_the_sentence(self) -> None:
+        self.assertEqual(T.reconstruct_payload(self.PAYLOAD), self.INPUT)
+        self.assertEqual(
+            T.reconstruct_rogueprompt(T.generate_rogueprompt(self.INPUT, key=self.KEY)),
+            self.INPUT,
+        )
+
+
 class CipherAndPayloadTests(unittest.TestCase):
     def test_vigenere_case_non_ascii_and_key_advancement(self) -> None:
         plaintext = "Ab-é Z!"

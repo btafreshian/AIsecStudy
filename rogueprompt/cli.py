@@ -9,14 +9,9 @@ import sys
 
 from .aggregate import aggregate_at3, aggregate_scores, write_summary_csv
 from .evaluator import HybridEvaluator, similarity_signals
-from .judge import (
-    apply_judge_decisions,
-    build_judge_request,
-    load_judge_decisions,
-    openai_compatible_judge,
-)
+from .judge import build_judge_request, load_judge_decisions, openai_compatible_judge
 from .schema import SchemaError, load_records, require_valid_records, validate_records
-from .scorers import ScoreConfig, score_records
+from .scorers import ScoreConfig
 from .semantic import get_backend
 from .versions import run_metadata, stamp_records
 
@@ -60,33 +55,35 @@ def validate_command(args: argparse.Namespace) -> int:
 
 
 def score_command(args: argparse.Namespace) -> int:
-    records = require_valid_records(load_records(args.input))
+    if args.judge_decisions and args.judge_endpoint:
+        raise ValueError(
+            "--judge-decisions and --judge-endpoint both supply the judge "
+            "labels; pass one or the other"
+        )
 
+    records = require_valid_records(load_records(args.input))
     config = ScoreConfig(labels_only=args.labels_only, strict_judge=args.strict)
 
-    if args.judge_decisions:
-        # Offline flow: attach the external decisions first, then let the
-        # scorer pick them up through its explicit-label short-circuits.
-        records = apply_judge_decisions(
-            records,
-            load_judge_decisions(args.judge_decisions),
-            strict=args.strict,
+    judge_call = None
+    if args.judge_endpoint:
+        judge_call = openai_compatible_judge(
+            args.judge_endpoint,
+            args.judge_model,
+            api_key_env=args.judge_api_key_env,
         )
-        scored = score_records(records, config=config)
-    else:
-        judge_call = None
-        if args.judge_endpoint:
-            judge_call = openai_compatible_judge(
-                args.judge_endpoint,
-                args.judge_model,
-                api_key_env=args.judge_api_key_env,
-            )
-        evaluator = HybridEvaluator(
-            similarity=get_backend(args.similarity),
-            judge_call=judge_call,
-            config=config,
-        )
-        scored = evaluator.score_records(records)
+
+    # One scoring path whether the judge is called here or its replies were
+    # collected separately, so the two flows label a given reply identically
+    # and every scored record carries the same fields.
+    evaluator = HybridEvaluator(
+        similarity=get_backend(args.similarity),
+        judge_call=judge_call,
+        decisions=(
+            load_judge_decisions(args.judge_decisions) if args.judge_decisions else None
+        ),
+        config=config,
+    )
+    scored = evaluator.score_records(records)
 
     if not args.no_version_stamp:
         # Section 4.5: the log says which components produced the record. This
@@ -115,8 +112,8 @@ def score_command(args: argparse.Namespace) -> int:
 def judge_requests_command(args: argparse.Namespace) -> int:
     records = require_valid_records(load_records(args.input))
     backend = get_backend(args.similarity)
-    # One request per record, blocks included, each carrying the same advisory
-    # signals the integrated path computes.
+    # Section 5.2 sends one judge call per response, blocks included, each
+    # carrying the same advisory signals the integrated path computes.
     requests = [
         build_judge_request(record, signals=similarity_signals(backend, record))
         for record in records
@@ -169,7 +166,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="ROGUEPROMPT_JUDGE_API_KEY",
         help="environment variable holding the judge API key",
     )
-    score_parser.add_argument("--judge-decisions", help="JSON/JSONL decisions from an external LLM judge")
+    score_parser.add_argument(
+        "--judge-decisions",
+        help="JSON/JSONL decisions from an external LLM judge; not combinable "
+        "with --judge-endpoint",
+    )
     score_parser.add_argument(
         "--labels-only",
         action="store_true",

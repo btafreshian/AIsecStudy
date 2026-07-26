@@ -6,13 +6,19 @@ carry that claim: the six components are fixed independently before a run, and
 a log has to say which of them produced a given record.
 
 Each component below declares a version and names the objects it covers. The
-declared version is the identity a log cites; the digest over the covered
-source is what catches an edit that landed without a version bump, since two
-installations reporting the same version but different digests did not run the
-same code.
+declared version is the identity a log cites; the digest is what catches an
+edit that landed without a version bump, since two installations reporting the
+same version but different digests did not run the same code.
 
-Only the declared versions feed ``configuration_id`` -- the "configuration
-identifier" of Section 4.5 -- so the identifier stays computable for a record
+The digest covers more than the named objects. Naming them is a statement of
+what the component is responsible for, but the helpers those objects call
+decide labels just as much, so the digest is taken over the package code
+reachable from them. Hashing only the named objects left a real gap: editing
+lexical._normalize_reason changes which stop reasons count as blocking, and
+that edit used to leave the digest untouched.
+
+Only the declared versions feed ``configuration_id`` (the "configuration
+identifier" of Section 4.5), so the identifier stays computable for a record
 whose prompt was built by an earlier release, where the covered source is no
 longer available to digest. The digests feed ``code_id`` instead, which
 describes one installation and is reported per run rather than per record.
@@ -20,11 +26,15 @@ describes one installation and is reported per run rather than per record.
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 import hashlib
 import inspect
+import re
+import sys
+from types import ModuleType
 
 from . import evaluator as _evaluator
 from . import judge as _judge
@@ -124,15 +134,9 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
         ),
     ),
     (
-        # 2.0 dropped the offline similarity/word-count labeler. Section 5.2
-        # states the continuous signals "did not independently determine a
-        # label", and the paper defines no offline stand-in for the judge.
-        # 3.0 moved the Section 5.2 regex and lexical checks into the code:
-        # block detection reads the provider status/error fields instead of
-        # trusting a supplied boolean, and the judge now receives the regex
-        # signals next to the similarity ones.
+        # See CHANGELOG.md for what each evaluator version changed.
         "evaluator",
-        "3.0",
+        "4.0",
         (
             _const("scorers.FAILURE_MODES", _scorers.FAILURE_MODES),
             _const("scorers.FAILURE_PRIORITY", _scorers.FAILURE_PRIORITY),
@@ -160,11 +164,13 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
             _scorers.score_reconstruction,
             _scorers.score_execution,
             _scorers.score_record,
+            _scorers.apply_block_override,
             _scorers.determine_failure_mode,
             _scorers.resolve_judge_failure_mode,
             _scorers.require_label_source,
             _judge.build_judge_prompt,
             _judge.parse_judge_decision,
+            _judge.apply_judge_decision,
             _judge.apply_judge_decisions,
             _evaluator.HybridEvaluator,
         ),
@@ -198,7 +204,7 @@ def _label_of(obj: object) -> str:
 
 def _source_of(obj: object) -> str:
     if isinstance(obj, _Constant):
-        return f"{obj.label}={obj.value!r}"
+        return f"{obj.label}={_stable_repr(obj.value)}"
     try:
         return inspect.getsource(obj)
     except (OSError, TypeError):
@@ -208,9 +214,135 @@ def _source_of(obj: object) -> str:
         return f"<source-unavailable:{_label_of(obj)}>"
 
 
+_PACKAGE = __name__.rsplit(".", 1)[0]
+
+
+def _own_module(obj: object) -> object | None:
+    """Return the module defining obj, when it belongs to this package."""
+    name = getattr(obj, "__module__", None)
+    if not isinstance(name, str):
+        return None
+    if name != _PACKAGE and not name.startswith(f"{_PACKAGE}."):
+        return None
+    return sys.modules.get(name)
+
+
+_ADDRESS_RE = re.compile(r" at 0x[0-9a-fA-F]+")
+
+
+def _stable_repr(value: object) -> str | None:
+    """Render a constant so identical code digests identically everywhere.
+
+    repr() is not enough on its own. Set and frozenset iteration order follows
+    string hashing, which is randomized per process, so digesting a raw set
+    repr would give one installation a different code_id on every run. Sets and
+    dicts are therefore emitted in sorted order, and a value whose repr carries
+    its address is refused outright rather than digested unstably.
+    """
+    if isinstance(value, (frozenset, set)):
+        parts = [_stable_repr(item) for item in value]
+        if any(part is None for part in parts):
+            return None
+        kind = "frozenset" if isinstance(value, frozenset) else "set"
+        return f"{kind}({{{', '.join(sorted(parts))}}})"
+    if isinstance(value, dict):
+        items = []
+        for key in value:
+            rendered_key, rendered_value = _stable_repr(key), _stable_repr(value[key])
+            if rendered_key is None or rendered_value is None:
+                return None
+            items.append(f"{rendered_key}: {rendered_value}")
+        return f"{{{', '.join(sorted(items))}}}"
+    if isinstance(value, (list, tuple)):
+        parts = [_stable_repr(item) for item in value]
+        if any(part is None for part in parts):
+            return None
+        suffix = "," if isinstance(value, tuple) and len(parts) == 1 else ""
+        brackets = "[]" if isinstance(value, list) else "()"
+        return f"{brackets[0]}{', '.join(parts)}{suffix}{brackets[1]}"
+
+    text = repr(value)
+    return None if _ADDRESS_RE.search(text) else text
+
+
+def _as_constant(module: object, name: str, value: object) -> _Constant | None:
+    """Wrap a module-level value so its content can be digested.
+
+    A referenced constant carries no source of its own, so it is digested by
+    value the same way an explicitly declared one is.
+    """
+    if _stable_repr(value) is None:
+        return None
+    short = getattr(module, "__name__", "?").rsplit(".", 1)[-1]
+    return _const(f"{short}.{name}", value)
+
+
+def _referenced(obj: object) -> list[object]:
+    """Return the package-level objects obj's source names.
+
+    Reads the bare names and dotted attributes in the function body and
+    resolves them against the globals of the module that defined it. Only
+    package objects come back, so stdlib and third-party calls are left out.
+    """
+    module = _own_module(obj)
+    if module is None:
+        return []
+    try:
+        tree = ast.parse(inspect.getsource(obj).lstrip())
+    except (OSError, TypeError, SyntaxError):
+        return []
+
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.append(node.id)
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            # A module-qualified call such as _transforms.segment_text.
+            names.append(node.attr)
+
+    found: list[object] = []
+    for name in names:
+        target = getattr(module, name, None)
+        if target is None or isinstance(target, ModuleType):
+            continue
+        if inspect.isfunction(target) or inspect.isclass(target):
+            if _own_module(target) is not None:
+                found.append(target)
+        elif name in vars(module):
+            constant = _as_constant(module, name, target)
+            if constant is not None:
+                found.append(constant)
+    return found
+
+
+def _closure(covered: Iterable[object]) -> list[object]:
+    """Expand covered objects with the package code they reach.
+
+    Section 4.5 wants a digest that identifies the code behind a declared
+    version. Hashing only the listed objects does not do that: their helpers
+    decide labels too, and editing one used to leave the digest untouched
+    while changing what the evaluator reports. Walking the references closes
+    that gap and keeps a component honest as it grows new helpers.
+
+    Keyed and ordered by label, so the digest does not depend on traversal
+    order and a constant reached twice is counted once.
+    """
+    seen: dict[str, object] = {}
+    queue = list(covered)
+    while queue:
+        obj = queue.pop()
+        label = _label_of(obj)
+        if label in seen:
+            continue
+        seen[label] = obj
+        if not isinstance(obj, _Constant):
+            queue.extend(_referenced(obj))
+    return [seen[label] for label in sorted(seen)]
+
+
 def _digest(covered: Iterable[object]) -> str:
     hasher = hashlib.sha256()
-    for obj in covered:
+    for obj in _closure(covered):
         hasher.update(_label_of(obj).encode("utf-8"))
         hasher.update(b"\x00")
         hasher.update(_source_of(obj).encode("utf-8"))

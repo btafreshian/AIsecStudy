@@ -7,10 +7,10 @@ embeddings, using the query adapter for the request and the passage adapter
 for the chunks. DifflibBackend approximates the same two numbers with no
 dependencies, so the package still runs without the model.
 
-Neither backend labels anything, and nothing downstream turns a signal into a
-label: Section 5.2 states that these continuous signals "did not independently
-determine a label". They are advisory input to the judge, and advisory output
-on a scored record.
+Both signals are advisory: input to the judge, and output on a scored record.
+Section 5.2 states that these continuous signals "did not independently
+determine a label", so no threshold over them decides a stage anywhere in this
+package.
 
 sentence_transformers and numpy are imported inside the methods that need
 them, so importing this module never pulls in the optional extras.

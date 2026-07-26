@@ -24,8 +24,9 @@ license-files = [
 embeddings = ["sentence-transformers>=3.0.0", "einops>=0.7.0"]
 # HTTP client for the integrated OpenAI-compatible LLM judge.
 judge = ["httpx>=0.27.0"]
-# Everything needed to reproduce the paper's hybrid evaluator.
-all = ["sentence-transformers>=3.0.0", "einops>=0.7.0", "httpx>=0.27.0"]
+# Everything needed to reproduce the paper's hybrid evaluator. Refers to the
+# extras above rather than restating their pins, so the three cannot drift.
+all = ["rogueprompt[embeddings,judge]"]
 
 [project.scripts]
 rogueprompt-evaluate = "rogueprompt.cli:main"

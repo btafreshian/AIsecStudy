@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
+import sys
 from contextlib import redirect_stdout
 from pathlib import Path
 import re
@@ -11,6 +14,8 @@ import unittest
 from rogueprompt import versions as V
 from rogueprompt.cli import main
 from rogueprompt.schema import validate_record
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # The six components Section 4.5 names, in the order the paper lists them.
 PAPER_COMPONENTS = (
@@ -61,9 +66,43 @@ class ComponentTests(unittest.TestCase):
     def test_covered_source_is_available_in_a_source_checkout(self) -> None:
         """A frozen build degrades to a sentinel digest; a checkout must not."""
         for name, _, covered in V._COMPONENTS:
-            for obj in covered:
+            for obj in V._closure(covered):
                 with self.subTest(component=name, covers=V._label_of(obj)):
                     self.assertNotIn("source-unavailable", V._source_of(obj))
+
+    def test_digest_reaches_the_helpers_that_decide_labels(self) -> None:
+        """Hashing only the listed objects let a helper edit change labels silently.
+
+        _normalize_reason decides which stop reasons count as blocking and
+        coerce_bool decides every stage boolean, yet neither is named in a
+        covers tuple. If the digest stops reaching them, an edit to either
+        changes what the evaluator reports while code_id stays put.
+        """
+        covered = dict((name, cov) for name, _, cov in V._COMPONENTS)["evaluator"]
+        digested = {V._label_of(obj) for obj in V._closure(covered)}
+
+        for label in (
+            "scorers.coerce_bool",
+            "scorers.apply_block_override",
+            "lexical._normalize_reason",
+            "lexical._status_code",
+            "lexical._first_match",
+            "lexical.clean_text",
+            "lexical.contains_refusal",
+        ):
+            with self.subTest(label=label):
+                self.assertIn(label, digested)
+
+    def test_closure_is_deterministic_and_includes_the_named_objects(self) -> None:
+        for name, _, covered in V._COMPONENTS:
+            with self.subTest(component=name):
+                closure = V._closure(covered)
+                self.assertEqual([V._label_of(o) for o in closure],
+                                 [V._label_of(o) for o in V._closure(covered)])
+                self.assertLessEqual(
+                    {V._label_of(o) for o in covered},
+                    {V._label_of(o) for o in closure},
+                )
 
     def test_declared_baseline_templates_match_the_shipped_columns(self) -> None:
         baselines = Path(__file__).resolve().parent.parent / "data" / "baseline_prompts.json"
@@ -100,6 +139,31 @@ class IdentifierTests(unittest.TestCase):
     def test_code_id_is_deterministic(self) -> None:
         self.assertEqual(V.code_id(), V.code_id())
         self.assertTrue(V.code_id().startswith("code-"))
+
+    def test_code_id_survives_hash_randomization(self) -> None:
+        """Two runs of identical code must agree, or code_id compares nothing.
+
+        Set and dict iteration order follows per-process string hashing, so a
+        digest that renders an unordered constant verbatim differs between runs
+        of the same installation.
+        """
+        script = "from rogueprompt.versions import code_id; print(code_id())"
+        seen = set()
+        for seed in ("0", "1", "12345"):
+            environ = dict(os.environ, PYTHONHASHSEED=seed, PYTHONPATH=str(REPO_ROOT))
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True, text=True, env=environ, cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            seen.add(result.stdout.strip())
+        self.assertEqual(len(seen), 1, f"code_id varied across runs: {seen}")
+
+    def test_unstable_constants_are_refused_not_digested(self) -> None:
+        self.assertIsNone(V._stable_repr(object()))
+        self.assertEqual(
+            V._stable_repr(frozenset({"b", "a"})), V._stable_repr(frozenset({"a", "b"}))
+        )
 
 
 class RunMetadataTests(unittest.TestCase):
