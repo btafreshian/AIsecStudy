@@ -57,10 +57,8 @@ class SerializationTests(unittest.TestCase):
 class PaperDemoVectorTests(unittest.TestCase):
     """The worked example of Section 4.2, reproduced exactly.
 
-    The paper prints every intermediate for I = "bring blue pens", so this
-    pins segmentation, parity, serialization, the cipher, assembly, and ROT13
-    against the published artifact rather than against our own expectations.
-    Any change here means the implementation and the paper have diverged.
+    The paper prints every intermediate for I = "bring blue pens", so a failure
+    here means the code and the paper have diverged.
     """
 
     INPUT = "bring blue pens"

@@ -17,7 +17,7 @@ from rogueprompt.schema import validate_record
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# The six components Section 4.5 names, in the order the paper lists them.
+# The six components of Section 4.5, in the order the paper lists them.
 PAPER_COMPONENTS = (
     "wrapper",
     "key",
@@ -71,13 +71,8 @@ class ComponentTests(unittest.TestCase):
                     self.assertNotIn("source-unavailable", V._source_of(obj))
 
     def test_digest_reaches_the_helpers_that_decide_labels(self) -> None:
-        """Hashing only the listed objects let a helper edit change labels silently.
-
-        _normalize_reason decides which stop reasons count as blocking and
-        coerce_bool decides every stage boolean, yet neither is named in a
-        covers tuple. If the digest stops reaching them, an edit to either
-        changes what the evaluator reports while code_id stays put.
-        """
+        """_normalize_reason and coerce_bool decide labels but are not named in
+        any covers tuple, so the digest has to reach them through the closure."""
         covered = dict((name, cov) for name, _, cov in V._COMPONENTS)["evaluator"]
         digested = {V._label_of(obj) for obj in V._closure(covered)}
 
@@ -141,12 +136,8 @@ class IdentifierTests(unittest.TestCase):
         self.assertTrue(V.code_id().startswith("code-"))
 
     def test_code_id_survives_hash_randomization(self) -> None:
-        """Two runs of identical code must agree, or code_id compares nothing.
-
-        Set and dict iteration order follows per-process string hashing, so a
-        digest that renders an unordered constant verbatim differs between runs
-        of the same installation.
-        """
+        """Set and dict iteration order follows per-process string hashing, so an
+        unordered constant rendered verbatim would differ between runs."""
         script = "from rogueprompt.versions import code_id; print(code_id())"
         seen = set()
         for seed in ("0", "1", "12345"):
@@ -222,7 +213,7 @@ class StampTests(unittest.TestCase):
         self.assertEqual(stamped["versions"]["evaluator"], V.component_versions()["evaluator"])
 
     def test_versions_from_an_earlier_release_are_kept(self) -> None:
-        """A scoring run did not build the prompt, so it cannot restate its wrapper."""
+        """A scoring run did not build the prompt, so it cannot restate the wrapper."""
         record = dict(RECORD, versions={"wrapper": "0.9", "evaluator": "0.9"})
         stamped = V.stamp_record(record, produced=V.EVALUATION_COMPONENTS)
 
@@ -293,8 +284,7 @@ class CommandLineTests(unittest.TestCase):
 
     def test_score_stamps_scored_records(self) -> None:
         output = self.tmp / "scored.json"
-        # --labels-only because the fixture carries no judge decision; scoring
-        # it would otherwise stop, which test_evaluator covers.
+        # --labels-only because the fixture carries no judge decision.
         self._run(
             "score",
             str(self.records),

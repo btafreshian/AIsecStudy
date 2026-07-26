@@ -3,17 +3,13 @@
 Two signals per record: the max and the top-three mean cosine similarity
 between the original request and chunks of the model response. JinaBackend
 computes them with jina-embeddings-v3 over 1024-dimensional L2-normalized
-embeddings, using the query adapter for the request and the passage adapter
-for the chunks. DifflibBackend approximates the same two numbers with no
-dependencies, so the package still runs without the model.
+embeddings, query adapter for the request and passage adapter for the chunks.
+DifflibBackend approximates the same two numbers without the model.
 
-Both signals are advisory: input to the judge, and output on a scored record.
-Section 5.2 states that these continuous signals "did not independently
-determine a label", so no threshold over them decides a stage anywhere in this
-package.
+Both are advisory, per Section 5.2: no threshold over them decides a stage.
 
-sentence_transformers and numpy are imported inside the methods that need
-them, so importing this module never pulls in the optional extras.
+sentence_transformers and numpy are imported inside the methods that need them,
+so importing this module never pulls in the optional extras.
 """
 
 from __future__ import annotations
@@ -99,9 +95,8 @@ class SimilarityBackend(Protocol):
 class DifflibBackend:
     """Dependency-free fallback built on difflib.SequenceMatcher.
 
-    Chunking and the max/top-three-mean reduction match JinaBackend, so the
-    two return comparable shapes. Only the per-chunk score differs: character
-    ratio here, cosine there.
+    Chunking and the max/top-three-mean reduction match JinaBackend; only the
+    per-chunk score differs, character ratio here against cosine there.
     """
 
     name = "difflib"
@@ -151,8 +146,7 @@ class JinaBackend:
     def _encode(self, texts: list[str], task: str):
         model = self._load()
         # task picks the LoRA adapter, truncate_dim does Matryoshka truncation.
-        # Older sentence-transformers releases reject one or both kwargs, so
-        # fall back through the variants until one is accepted.
+        # Older sentence-transformers releases reject one or both kwargs.
         for kwargs in (
             {"task": task, "truncate_dim": self.truncate_dim, "normalize_embeddings": True},
             {"task": task, "normalize_embeddings": True},
@@ -182,9 +176,8 @@ class JinaBackend:
 def get_backend(name: str = "auto", max_chars: int = DEFAULT_CHUNK_CHARS) -> SimilarityBackend:
     """Return a similarity backend by name.
 
-    "auto" takes JinaBackend if sentence-transformers imports, DifflibBackend
-    otherwise. "jina" forces the embedding backend and raises ImportError when
-    the extra is missing. "difflib" forces the fallback.
+    "auto" takes JinaBackend if sentence-transformers imports and DifflibBackend
+    otherwise; "jina" and "difflib" force one or the other.
     """
     import importlib.util
 

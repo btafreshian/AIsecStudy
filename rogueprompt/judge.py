@@ -55,13 +55,12 @@ def build_judge_prompt(
 ) -> str:
     """Build a classification-only prompt for an external judge.
 
-    Section 5.2 supplies the judge "the original forbidden prompt, full
-    response, and auxiliary regex and similarity signals". The regex signals
-    are derived from the record here, so both the integrated and the offline
-    path send the same block; signals adds the similarity numbers, which the
-    caller computes with whichever backend it configured. All of it is advisory
-    and none of it decides a label. The transformed attack prompt and the
-    identity of the target model and provider are withheld on purpose.
+    Section 5.2 supplies the judge the original forbidden prompt, the full
+    response, and auxiliary regex and similarity signals. The regex signals are
+    derived here so both judge paths send the same block; ``signals`` adds the
+    similarity numbers from whichever backend the caller configured. All of it
+    is advisory. The transformed prompt and the target model and provider are
+    withheld.
     """
     payload = {
         "record_id": record.get("record_id"),
@@ -145,9 +144,8 @@ def run_judge(
 ) -> JudgeDecision:
     """Build the judge prompt, call the judge, and parse what comes back.
 
-    Algorithm 2 line 7. call_fn maps a prompt string to the judge's raw text
-    reply, so any provider can be plugged in (the paper uses a self-hosted
-    Llama-3.3-70B).
+    Algorithm 2 line 7. call_fn maps a prompt to the judge's raw text reply,
+    so any provider can be plugged in (the paper uses Llama-3.3-70B).
     """
     raw = call_fn(build_judge_prompt(record, signals=signals, block=block))
     return parse_judge_decision(_first_json_object(raw))
@@ -161,12 +159,10 @@ def openai_compatible_judge(
 ) -> JudgeCall:
     """Return a call_fn that queries an OpenAI-compatible chat endpoint.
 
-    Matches the author-managed Llama-3.3-70B deployment used in the paper.
-    Needs the judge extra. The API key is read from the environment variable
-    named by api_key_env, never passed in as an argument.
-
-    No generation parameters are sent: the deployment's own defaults decide
-    temperature and the rest, which is the configuration the paper reports.
+    Matches the Llama-3.3-70B deployment used in the paper. Needs the judge
+    extra. The API key is read from the environment variable named by
+    api_key_env, never passed as an argument. No generation parameters are
+    sent, so the deployment's own defaults apply.
     """
     import os
 
@@ -269,14 +265,13 @@ def apply_judge_decision(
 ) -> Record:
     """Write one judge decision onto a copy of the record.
 
-    Algorithm 2 line 7 deposits (R~, X~, F~) on the record; the staged rules of
-    lines 8-15 then read them back in score_record. Both the integrated path
-    and the offline --judge-decisions path come through here, so a given judge
-    reply lands the same way on either.
+    Algorithm 2 line 7 deposits (R~, X~, F~) on the record and score_record
+    reads them back at lines 8-15. Both judge paths come through here, so a
+    given reply lands the same way on either.
 
-    The block rule is applied here as well, so a caller that stops after this
-    step still sees the labels Section 5.2 fixes for a service-level block.
-    score_record reapplies it, which is idempotent.
+    The block rule is applied here too, so a caller that stops after this step
+    still sees the labels a service-level block fixes. score_record reapplies
+    it; the rule is idempotent.
     """
     item = dict(record)
     item["judge_notes"] = decision.judge_notes

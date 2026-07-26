@@ -1,27 +1,15 @@
-"""Per-component versions for the log fields Section 4.5 requires.
+"""Per-component versions for the log fields of Section 4.5.
 
-Section 4.5 states that logs record "the wrapper, key, serialization, baseline
-template, parser, and evaluator versions". One distribution version cannot
-carry that claim: the six components are fixed independently before a run, and
-a log has to say which of them produced a given record.
+Logs record the wrapper, key, serialization, baseline template, parser, and
+evaluator versions. The six are fixed independently before a run, so one
+distribution version cannot stand in for them.
 
-Each component below declares a version and names the objects it covers. The
-declared version is the identity a log cites; the digest is what catches an
-edit that landed without a version bump, since two installations reporting the
-same version but different digests did not run the same code.
-
-The digest covers more than the named objects. Naming them is a statement of
-what the component is responsible for, but the helpers those objects call
-decide labels just as much, so the digest is taken over the package code
-reachable from them. Hashing only the named objects left a real gap: editing
-lexical._normalize_reason changes which stop reasons count as blocking, and
-that edit used to leave the digest untouched.
-
-Only the declared versions feed ``configuration_id`` (the "configuration
-identifier" of Section 4.5), so the identifier stays computable for a record
-whose prompt was built by an earlier release, where the covered source is no
-longer available to digest. The digests feed ``code_id`` instead, which
-describes one installation and is reported per run rather than per record.
+Each component declares a version and names the objects it covers. The declared
+versions feed ``configuration_id``, which stays computable for a record built
+by an earlier release. The digests feed ``code_id``, which fingerprints one
+installation and catches an edit that landed without a version bump. Digests
+are taken over the package code reachable from the named objects, not just the
+objects themselves, since their helpers decide labels too.
 """
 
 from __future__ import annotations
@@ -46,9 +34,8 @@ from .schema import Record
 # Keep in sync with pyproject.toml; tests/test_versions.py checks the pair.
 __version__ = "0.1.0"
 
-# The baseline columns of data/baseline_prompts.json. The baseline templates
-# themselves come from prior work (PAP, auto payload splitting, disemvowel,
-# base64 raw), so the column set is what this repository actually fixes.
+# The baseline columns of data/baseline_prompts.json. The templates themselves
+# come from prior work, so the column set is what we fix here.
 BASELINE_TEMPLATES = (
     "jailbroken_prompt_pair",
     "jailbroken_prompt_pap_authority_endorsement",
@@ -60,7 +47,7 @@ BASELINE_TEMPLATES = (
 
 @dataclass(frozen=True)
 class _Constant:
-    """A covered value that has no source of its own, such as a fixed key."""
+    """A covered value with no source of its own, such as a fixed key."""
 
     label: str
     value: object
@@ -70,9 +57,8 @@ def _const(label: str, value: object) -> _Constant:
     return _Constant(label=label, value=value)
 
 
-# (name, declared version, covered objects), in the order Section 4.5 lists
-# them. This is the single source of truth for both the versions and the
-# digests, so a component cannot be versioned without saying what it covers.
+# (name, declared version, covered objects), in the order of Section 4.5.
+# Single source of truth for both the versions and the digests.
 _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
     (
         "wrapper",
@@ -100,8 +86,8 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
         ),
     ),
     (
-        # Segmentation and serialization, plus the fixed ROT13 layer applied to
-        # the assembled payload. Section 4.5 does not version ROT13 separately.
+        # Segmentation and serialization, plus the ROT13 layer over the
+        # assembled payload; Section 4.5 does not version ROT13 separately.
         "serialization",
         "1.0",
         (
@@ -134,7 +120,6 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
         ),
     ),
     (
-        # See CHANGELOG.md for what each evaluator version changed.
         "evaluator",
         "4.0",
         (
@@ -179,15 +164,14 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
 
 COMPONENT_NAMES = tuple(name for name, _, _ in _COMPONENTS)
 
-# Which components a run is in a position to speak for. Prompt construction
-# fixes the first five; scoring fixes the last one.
+# Prompt construction fixes the first five; scoring fixes the last one.
 GENERATION_COMPONENTS = ("wrapper", "key", "serialization", "baseline_template", "parser")
 EVALUATION_COMPONENTS = ("evaluator",)
 
 
 @dataclass(frozen=True)
 class Component:
-    """One of the six components Section 4.5 requires a log to version."""
+    """One of the six versioned components."""
 
     name: str
     version: str
@@ -208,9 +192,8 @@ def _source_of(obj: object) -> str:
     try:
         return inspect.getsource(obj)
     except (OSError, TypeError):
-        # No .py next to the import, as in a frozen or zipped build. Digesting
-        # is impossible there, and saying so is better than emitting a digest
-        # that would compare equal to a real one.
+        # Frozen or zipped build with no .py to read. Say so rather than emit a
+        # digest that would compare equal to a real one.
         return f"<source-unavailable:{_label_of(obj)}>"
 
 
@@ -218,7 +201,7 @@ _PACKAGE = __name__.rsplit(".", 1)[0]
 
 
 def _own_module(obj: object) -> object | None:
-    """Return the module defining obj, when it belongs to this package."""
+    """Return the module defining obj, if it belongs to this package."""
     name = getattr(obj, "__module__", None)
     if not isinstance(name, str):
         return None
@@ -233,11 +216,9 @@ _ADDRESS_RE = re.compile(r" at 0x[0-9a-fA-F]+")
 def _stable_repr(value: object) -> str | None:
     """Render a constant so identical code digests identically everywhere.
 
-    repr() is not enough on its own. Set and frozenset iteration order follows
-    string hashing, which is randomized per process, so digesting a raw set
-    repr would give one installation a different code_id on every run. Sets and
-    dicts are therefore emitted in sorted order, and a value whose repr carries
-    its address is refused outright rather than digested unstably.
+    Set and dict iteration order follows per-process string hashing, so those
+    are emitted sorted; a value whose repr carries its address is refused
+    rather than digested unstably.
     """
     if isinstance(value, (frozenset, set)):
         parts = [_stable_repr(item) for item in value]
@@ -266,11 +247,7 @@ def _stable_repr(value: object) -> str | None:
 
 
 def _as_constant(module: object, name: str, value: object) -> _Constant | None:
-    """Wrap a module-level value so its content can be digested.
-
-    A referenced constant carries no source of its own, so it is digested by
-    value the same way an explicitly declared one is.
-    """
+    """Wrap a module-level value so it can be digested by value."""
     if _stable_repr(value) is None:
         return None
     short = getattr(module, "__name__", "?").rsplit(".", 1)[-1]
@@ -278,11 +255,10 @@ def _as_constant(module: object, name: str, value: object) -> _Constant | None:
 
 
 def _referenced(obj: object) -> list[object]:
-    """Return the package-level objects obj's source names.
+    """Return the package-level objects named in obj's source.
 
-    Reads the bare names and dotted attributes in the function body and
-    resolves them against the globals of the module that defined it. Only
-    package objects come back, so stdlib and third-party calls are left out.
+    Bare names and dotted attributes are resolved against the globals of the
+    defining module, so stdlib and third-party calls are left out.
     """
     module = _own_module(obj)
     if module is None:
@@ -318,12 +294,6 @@ def _referenced(obj: object) -> list[object]:
 def _closure(covered: Iterable[object]) -> list[object]:
     """Expand covered objects with the package code they reach.
 
-    Section 4.5 wants a digest that identifies the code behind a declared
-    version. Hashing only the listed objects does not do that: their helpers
-    decide labels too, and editing one used to leave the digest untouched
-    while changing what the evaluator reports. Walking the references closes
-    that gap and keeps a component honest as it grows new helpers.
-
     Keyed and ordered by label, so the digest does not depend on traversal
     order and a constant reached twice is counted once.
     """
@@ -356,7 +326,7 @@ def _short_hash(prefix: str, payload: str) -> str:
 
 @lru_cache(maxsize=1)
 def components() -> tuple[Component, ...]:
-    """Return the six components, in the order Section 4.5 lists them."""
+    """Return the six components, in the order of Section 4.5."""
     return tuple(
         Component(
             name=name,
@@ -381,9 +351,8 @@ def component_digests() -> dict[str, str]:
 def configuration_id(versions: Mapping[str, str] | None = None) -> str:
     """Return the configuration identifier for a set of declared versions.
 
-    Defaults to this installation. Passing a record's own version block gives
-    that record's identifier, which is what makes two runs comparable without
-    needing the code that produced either.
+    Defaults to this installation; passing a record's own version block gives
+    that record's identifier.
     """
     items = component_versions() if versions is None else dict(versions)
     return _short_hash("cfg", ";".join(f"{name}={items[name]}" for name in sorted(items)))
@@ -392,15 +361,15 @@ def configuration_id(versions: Mapping[str, str] | None = None) -> str:
 def code_id() -> str:
     """Return the fingerprint of the code behind the declared versions.
 
-    Two installations that report the same configuration_id but different
-    code_ids are running different code under the same version labels.
+    Same configuration_id but different code_id means the same version labels
+    over different code.
     """
     payload = ";".join(f"{c.name}={c.digest}" for c in components())
     return _short_hash("code", payload)
 
 
 def run_metadata() -> dict[str, object]:
-    """Return the per-run provenance block, including the per-component digests."""
+    """Return the per-run provenance block, digests included."""
     return {
         "package_version": __version__,
         "configuration_id": configuration_id(),
@@ -424,10 +393,10 @@ def stamp_record(
 ) -> Record:
     """Return a copy of record carrying the Section 4.5 version block.
 
-    ``produced`` names the components this run actually ran; those always
-    describe this installation. Every other component is filled in only when
-    the record does not already carry one, so a record whose prompt was built
-    by an earlier release keeps the wrapper version that actually built it.
+    ``produced`` names the components this run actually ran, which are always
+    taken from this installation. The rest are filled in only when missing, so
+    a prompt built by an earlier release keeps the wrapper version that built
+    it.
     """
     unknown = [name for name in produced if name not in COMPONENT_NAMES]
     if unknown:

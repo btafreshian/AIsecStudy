@@ -32,9 +32,9 @@ def _vigenere(text: str, key: str, direction: int) -> str:
 def vigenere_encrypt(plaintext: str, key: str = VIGENERE_KEY) -> str:
     """Encrypt ASCII letters and pass everything else through.
 
-    The key advances only on letters it actually shifts, so the digits, colons
-    and bars of a serialized stream come out untouched and the payload stays
-    parseable while encrypted.
+    The key advances only on the letters it shifts, so the digits, colons and
+    bars of a serialized stream survive and the payload stays parseable while
+    encrypted.
     """
     return _vigenere(plaintext, key, 1)
 
@@ -56,8 +56,8 @@ def apply_rot13(text: str) -> str:
 def _require_text(input_text: str) -> str:
     """Reject blank input and return the text in NFC.
 
-    NFC because it is canonical-preserving. The compatibility forms NFKC and
-    NFKD rewrite characters, which would break exact recovery.
+    NFC preserves the characters; the compatibility forms NFKC and NFKD rewrite
+    them, which would break exact recovery.
     """
     if not input_text.strip():
         raise ValueError("input_text cannot be empty")
@@ -80,7 +80,7 @@ def segment_text(input_text: str) -> tuple[str, ...]:
         cursor = leading.end()
 
     while cursor < len(text):
-        # Always matches: leading whitespace is gone, so text[cursor] is a word char.
+        # Always matches: leading whitespace is gone, so text[cursor] is a word char
         span = re.match(r"\S+\s*", text[cursor:]).group(0)
         spans.append(span)
         cursor += len(span)
@@ -122,7 +122,7 @@ def deserialize_spans(serialized: str) -> tuple[str, ...]:
     """Inverse of serialize_spans.
 
     The declared lengths drive the parse, so a span may contain "|" or ":"
-    without any escaping.
+    unescaped.
     """
     if serialized == "":
         return ()
@@ -164,8 +164,8 @@ def _consume_serialized_field(
 ) -> tuple[str, int]:
     """Read one serialized stream up to terminator, and step past it.
 
-    Driven by the span lengths rather than by searching for the terminator,
-    because span text can contain ";ODD=" or ";KEY=" itself.
+    Driven by the span lengths rather than a search for the terminator, since
+    span text can contain ";ODD=" or ";KEY=" itself.
     """
     start = cursor
     if payload.startswith(terminator, cursor):

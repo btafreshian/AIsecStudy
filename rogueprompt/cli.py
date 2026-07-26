@@ -73,8 +73,7 @@ def score_command(args: argparse.Namespace) -> int:
         )
 
     # One scoring path whether the judge is called here or its replies were
-    # collected separately, so the two flows label a given reply identically
-    # and every scored record carries the same fields.
+    # collected separately, so both label a given reply identically.
     evaluator = HybridEvaluator(
         similarity=get_backend(args.similarity),
         judge_call=judge_call,
@@ -86,8 +85,7 @@ def score_command(args: argparse.Namespace) -> int:
     scored = evaluator.score_records(records)
 
     if not args.no_version_stamp:
-        # Section 4.5: the log says which components produced the record. This
-        # run performed the labeling, so it speaks for the evaluator version
+        # This run did the labeling, so it speaks for the evaluator version
         # only; generation versions are filled in but never overwritten.
         scored = stamp_records(scored)
 
@@ -112,8 +110,8 @@ def score_command(args: argparse.Namespace) -> int:
 def judge_requests_command(args: argparse.Namespace) -> int:
     records = require_valid_records(load_records(args.input))
     backend = get_backend(args.similarity)
-    # Section 5.2 sends one judge call per response, blocks included, each
-    # carrying the same advisory signals the integrated path computes.
+    # One request per response, blocks included, carrying the same advisory
+    # signals the integrated path computes.
     requests = [
         build_judge_request(record, signals=similarity_signals(backend, record))
         for record in records

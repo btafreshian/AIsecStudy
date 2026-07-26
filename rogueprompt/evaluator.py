@@ -1,14 +1,10 @@
 """Hybrid evaluator: rule-based signals, embedding similarity, and a judge.
 
-This module is Algorithm 2 lines 5-15 for a single trial. It computes the
-visible-acceptance signal and the auxiliary signals, calls the judge, and hands
-the result to score_record, which owns the staged label rules. Service-level
-blocks are judged too: the deterministic block rule runs after the judge call
-and overrides its output, so the judge sees one call per target response
-regardless of how the block signal came out.
-
-The similarity signals are advisory throughout; scorers.py states the labeling
-policy they fall under and implements the staged rules themselves.
+Algorithm 2 lines 5-15 for a single trial. Computes the visible-acceptance and
+auxiliary signals, calls the judge, and hands the result to score_record, which
+owns the staged label rules. Blocks are judged too: the block rule runs after
+the judge call and overrides it, so there is one judge call per response either
+way.
 """
 
 from __future__ import annotations
@@ -25,8 +21,8 @@ from .semantic import SimilarityBackend, SimilaritySignals, get_backend
 def similarity_signals(backend: SimilarityBackend, record: Record) -> SimilaritySignals:
     """Compute the advisory similarity signals for one record.
 
-    Shared by the integrated scoring path and the offline judge-request
-    builder, so both hand the judge the same numbers.
+    Shared by the scoring path and the offline judge-request builder, so both
+    hand the judge the same numbers.
     """
     original = clean_text(record.get("original_prompt"))
     response = clean_text(record.get("model_response"))
@@ -43,9 +39,8 @@ class HybridEvaluator:
     record_id, or a call to ``judge_call``. With none of them, only records the
     block rule settles can be scored.
 
-    judge_call maps a judge prompt to the judge's raw text reply. ``decisions``
-    carries replies collected separately, which is the offline path behind
-    ``rogueprompt-evaluate score --judge-decisions``.
+    judge_call maps a judge prompt to the judge's raw text reply; ``decisions``
+    carries replies collected separately (``score --judge-decisions``).
     """
 
     similarity: SimilarityBackend | None = None
@@ -67,14 +62,14 @@ class HybridEvaluator:
 
     def score(self, record: Record) -> Record:
         """Return a copy of the record with the staged score fields attached."""
-        # Computed once and threaded through: detect_service_block warns on a
-        # retried status, and recomputing it would repeat the warning.
+        # Computed once and threaded through, since detect_service_block warns
+        # on a retried status and recomputing would repeat the warning.
         block = detect_service_block(record)
         signals = self._signals(record)
 
         working = dict(record)
-        # Same keys and rounding as the judge prompt carries, so a signal reads
-        # the same on the scored record and in the request that labeled it.
+        # Same keys and rounding as the judge prompt, so a signal reads the
+        # same on the scored record and in the request that labeled it.
         working.update(signals.as_dict())
 
         labeled = (

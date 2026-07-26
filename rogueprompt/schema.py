@@ -27,10 +27,9 @@ class SchemaError(ValueError):
 def read_text(path: str | Path) -> str:
     """Read a UTF-8 text file, tolerating a leading byte-order mark.
 
-    Every input file here comes from the user, and Windows tooling routinely
-    writes UTF-8 with a BOM. utf-8-sig drops that BOM when it is there and is
-    identical to utf-8 when it is not, so those files load without a manual
-    re-encode. Outputs are still written as plain UTF-8.
+    Input files come from the user and Windows tooling routinely writes UTF-8
+    with a BOM; utf-8-sig drops it when present and is identical to utf-8 when
+    it is not. Outputs are still written as plain UTF-8.
     """
     return Path(path).read_text(encoding="utf-8-sig")
 
@@ -85,8 +84,8 @@ def validate_record(record: Record, index: int | None = None) -> list[str]:
     return errors
 
 
-# The "observable status/error signals" of Section 4.5, which the block check
-# in lexical.py reads. All optional: a record may carry none of them.
+# The Section 4.5 status/error signals the block check in lexical.py reads.
+# All optional; a record may carry none of them.
 STATUS_TEXT_FIELDS = (
     "finish_reason",
     "stop_reason",
@@ -115,10 +114,8 @@ def _validate_status_signals(record: Record, prefix: str) -> list[str]:
 def _validate_provenance(record: Record, prefix: str) -> list[str]:
     """Check the optional Section 4.5 version block.
 
-    Optional because records are collected by the user, and a run predating
-    the version block is still a valid record. The check is structural only:
-    which component names are meaningful is versions.py's business, and this
-    module stays below it so that module can import this one.
+    Structural only. Which component names are meaningful is versions.py's
+    business, and this module stays below it so that module can import it.
     """
     errors: list[str] = []
 
