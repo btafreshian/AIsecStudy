@@ -13,6 +13,10 @@ dependencies = []
 license = "MIT"
 license-files = [
     "LICENSE",
+    # Attribution for the bundled StrongREJECT data. Not strictly required
+    # today (data/ is outside the package), but keeps the notice attached if
+    # the dataset is ever packaged.
+    "NOTICE",
 ]
 
 [project.optional-dependencies]
