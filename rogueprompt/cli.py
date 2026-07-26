@@ -62,12 +62,7 @@ def validate_command(args: argparse.Namespace) -> int:
 def score_command(args: argparse.Namespace) -> int:
     records = require_valid_records(load_records(args.input))
 
-    config = ScoreConfig(
-        reconstruction_threshold=args.reconstruction_threshold,
-        min_execution_words=args.min_execution_words,
-        use_heuristics=not args.labels_only,
-        strict_judge=args.strict,
-    )
+    config = ScoreConfig(labels_only=args.labels_only, strict_judge=args.strict)
 
     if args.judge_decisions:
         # Offline flow: attach the external decisions first, then let the
@@ -175,14 +170,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="environment variable holding the judge API key",
     )
     score_parser.add_argument("--judge-decisions", help="JSON/JSONL decisions from an external LLM judge")
-    score_parser.add_argument("--labels-only", action="store_true", help="disable deterministic fallback heuristics")
+    score_parser.add_argument(
+        "--labels-only",
+        action="store_true",
+        help="leave an accepted response unlabeled when no judge decision reached it, instead of stopping",
+    )
     score_parser.add_argument(
         "--strict",
         action="store_true",
         help="stop on a judge BI for an accepted response instead of relabeling it OTH",
     )
-    score_parser.add_argument("--reconstruction-threshold", type=float, default=0.55)
-    score_parser.add_argument("--min-execution-words", type=int, default=8)
     score_parser.add_argument("--run-metadata", help="write this run's component versions and digests as JSON")
     score_parser.add_argument(
         "--no-version-stamp",

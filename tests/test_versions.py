@@ -115,13 +115,22 @@ class RunMetadataTests(unittest.TestCase):
             list(PAPER_COMPONENTS),
         )
 
-    def test_readme_pins_the_current_configuration_id(self) -> None:
-        """The README tells readers which configuration built data/."""
+    def test_readme_pins_the_versions_that_built_the_data(self) -> None:
+        """The README tells readers which components built data/."""
         readme = Path(__file__).resolve().parent.parent / "README.md"
         if not readme.exists():  # running against an installed copy
             self.skipTest("README.md is not part of the installed package")
-        pinned = re.findall(r"cfg-[0-9a-f]{12}", readme.read_text(encoding="utf-8"))
-        self.assertEqual(set(pinned), {V.configuration_id()})
+
+        sentence = re.search(
+            r"The prompt files in `data/` were generated under ([^\n]+)",
+            readme.read_text(encoding="utf-8"),
+        )
+        self.assertIsNotNone(sentence)
+        pinned = dict(re.findall(r"`(\w+)` (\d+\.\d+)", sentence.group(1)))
+        current = V.component_versions()
+        self.assertEqual(
+            pinned, {name: current[name] for name in V.GENERATION_COMPONENTS}
+        )
 
     def test_declared_version_matches_pyproject(self) -> None:
         pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
@@ -220,7 +229,17 @@ class CommandLineTests(unittest.TestCase):
 
     def test_score_stamps_scored_records(self) -> None:
         output = self.tmp / "scored.json"
-        self._run("score", str(self.records), "--output", str(output), "--similarity", "difflib")
+        # --labels-only because the fixture carries no judge decision; scoring
+        # it would otherwise stop, which test_evaluator covers.
+        self._run(
+            "score",
+            str(self.records),
+            "--output",
+            str(output),
+            "--similarity",
+            "difflib",
+            "--labels-only",
+        )
 
         scored = json.loads(output.read_text(encoding="utf-8"))[0]
         self.assertEqual(scored["versions"], V.component_versions())
@@ -235,6 +254,7 @@ class CommandLineTests(unittest.TestCase):
             str(output),
             "--similarity",
             "difflib",
+            "--labels-only",
             "--no-version-stamp",
         )
 
@@ -249,6 +269,7 @@ class CommandLineTests(unittest.TestCase):
             str(self.records),
             "--similarity",
             "difflib",
+            "--labels-only",
             "--run-metadata",
             str(metadata),
         )

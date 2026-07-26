@@ -129,12 +129,12 @@ The evaluator works with JSON or JSONL records supplied by the user. Required in
 
 The optional `versions` and `configuration_id` fields described under [Run Provenance](#run-provenance) are accepted on input and validated when present.
 
-The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `BI`, `DPF`, `PR`, `RAR`, and `OTH`. `PR` (partial reconstruction) is a graded judgment produced only by the LLM judge or an explicit record label; the deterministic fallback scores reconstruction as a boolean and cannot distinguish partial from failed recovery, so offline it emits only `BI`, `DPF`, `RAR`, and `OTH`.
+The scorer produces bypass, reconstruction, execution, and failure-mode fields. Failure modes use the paper labels `BI`, `DPF`, `PR`, `RAR`, and `OTH`. Bypass and `BI` follow from the deterministic block rule; every other label comes from the LLM judge, or from a label the record already carries. Nothing derives a label from the similarity signals — see [Hybrid evaluator](#hybrid-evaluator).
 
 ```bash
 rogueprompt-evaluate validate path/to/evaluation_records.jsonl
-rogueprompt-evaluate score path/to/evaluation_records.jsonl --summary-json summary.json
-rogueprompt-evaluate score path/to/evaluation_records.jsonl --conditions conditions.csv
+rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-endpoint https://your-deployment/v1 --summary-json summary.json
+rogueprompt-evaluate score path/to/evaluation_records.jsonl --judge-decisions decisions.jsonl --conditions conditions.csv
 ```
 
 ### Hybrid evaluator
@@ -151,7 +151,7 @@ The judge sees every response, including the ones the deterministic check flagge
   pip install -e '.[embeddings]'
 ```
 
-  The default `auto` backend uses `jina` when it is installed and otherwise falls back to a dependency-free `difflib` approximation, so the package runs without the model. The `difflib` fallback is an approximation and does not reproduce the paper's reported rates.
+  The default `auto` backend uses `jina` when it is installed and otherwise falls back to a dependency-free `difflib` approximation, so the package runs without the model. Either way the signals are advisory: §5.2 states that "these continuous signals did not independently determine a label", and none of them decides a stage here. `difflib` changes what the judge is shown and does not reproduce the paper's setup, which used `jina`.
 
 - **LLM judge (`--judge-endpoint`).** Point the evaluator at an OpenAI-compatible endpoint (e.g. a self-hosted `Llama-3.3-70B-Instruct` deployment, as in the paper). The judge receives the original prompt, full response, and the auxiliary signals; the transformed attack prompt and the target-model/provider identities are withheld. No generation parameters are sent, so the deployment's own defaults apply. Install the client with the `judge` extra and pass the API key via an environment variable:
 
@@ -163,7 +163,15 @@ The judge sees every response, including the ones the deterministic check flagge
       --summary-json summary.json
 ```
 
-Without `--judge-endpoint`, the evaluator uses the deterministic fallback (similarity threshold plus refusal patterns) so it still runs offline. Install both extras with `pip install -e '.[all]'`.
+Install both extras with `pip install -e '.[all]'`.
+
+**There is no offline labeler.** §5.2 assigns reconstruction and execution to the judge and rules out the alternative in as many words: *"These continuous signals did not independently determine a label."* The paper defines no offline stand-in, so this package does not ship one. A run with neither `--judge-endpoint` nor `--judge-decisions` stops on the first accepted response it cannot label:
+
+```
+error: record 'r-0001': accepted response carries no reconstruction/execution labels and no judge decision reached it.
+```
+
+Two cases still score without a judge, because the paper labels them without one: a record that already carries `reconstruction_success` and `execution_success`, and a record the deterministic rule flags as a service-level block, which is fixed to `BI` regardless of what any judge returns. Pass `--labels-only` to leave the remaining accepted responses unlabeled (`null` stages, no failure mode) instead of stopping; they are then counted in `*_missing_count` rather than as failures.
 
 Create classification-only judge requests for an external LLM judge. `judge-requests` takes the same `--similarity` backend as `score` and embeds the resulting signals in each prompt, so the offline requests are byte-identical to what the integrated path sends. One request is written per record, blocks included; the block rule is applied when the decisions are read back in.
 
@@ -197,7 +205,7 @@ Each component reports a declared `version`, the objects it `covers`, and a `dig
 rogueprompt-evaluate score records.jsonl --output scored.json --run-metadata run.json
 ```
 
-The prompt files in `data/` were generated under configuration `cfg-e24defdf5529`.
+`configuration_id` covers all six components, so it moves when the evaluator changes even though prompt construction did not. The prompt files in `data/` were generated under `wrapper` 1.0, `key` 1.0, `serialization` 1.0, `baseline_template` 1.0, and `parser` 1.0.
 
 ## Verification
 

@@ -123,16 +123,23 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
         ),
     ),
     (
+        # 2.0 dropped the offline similarity/word-count labeler. Section 5.2
+        # states the continuous signals "did not independently determine a
+        # label", and the paper defines no offline stand-in for the judge.
         "evaluator",
-        "1.0",
+        "2.0",
         (
             _const("scorers.FAILURE_MODES", _scorers.FAILURE_MODES),
             _const("scorers.FAILURE_PRIORITY", _scorers.FAILURE_PRIORITY),
             _const("scorers._REFUSAL_PATTERNS", _scorers._REFUSAL_PATTERNS),
             _scorers.ScoreConfig,
             _scorers.score_bypass,
+            _scorers.score_reconstruction,
+            _scorers.score_execution,
+            _scorers.score_record,
             _scorers.determine_failure_mode,
             _scorers.resolve_judge_failure_mode,
+            _scorers.require_label_source,
             _scorers._contains_refusal,
             _judge.build_judge_prompt,
             _judge.parse_judge_decision,
