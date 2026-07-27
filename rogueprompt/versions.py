@@ -2,13 +2,10 @@
 
 Logs record the wrapper, key, serialization, baseline template, parser, and
 evaluator versions.
-
-Each component declares a version and names the objects it covers. The declared
-versions feed ``configuration_id``, which stays computable for a record built
-by an earlier release. The digests feed ``code_id``, which fingerprints one
-installation and catches an edit that landed without a version bump. Digests
-are taken over the package code reachable from the named objects, not just the
-objects themselves, since their helpers decide labels too.
+Each component declares a version and its covered objects. Versions drive
+``configuration_id`` (computable across older releases); digests drive
+``code_id`` (fingerprints an install, catches unbumped edits).
+Digests cover all reachable code, not just named objects, since helpers affect labels too.
 """
 
 from __future__ import annotations

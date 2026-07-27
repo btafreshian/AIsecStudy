@@ -12,11 +12,7 @@ from .semantic import SimilarityBackend, SimilaritySignals, get_backend
 
 
 def similarity_signals(backend: SimilarityBackend, record: Record) -> SimilaritySignals:
-    """Compute the advisory similarity signals for one record.
-
-    Shared by the scoring path and the offline judge-request builder, so both
-    hand the judge the same numbers.
-    """
+    """Compute the advisory similarity signals for one record."""
     original = clean_text(record.get("original_prompt"))
     response = clean_text(record.get("model_response"))
     return backend.signals(original, response)
@@ -55,8 +51,6 @@ class HybridEvaluator:
 
     def score(self, record: Record) -> Record:
         """Return a copy of the record with the staged score fields attached."""
-        # Computed once and threaded through, since detect_service_block warns
-        # on a retried status and recomputing would repeat the warning.
         block = detect_service_block(record)
         signals = self._signals(record)
 

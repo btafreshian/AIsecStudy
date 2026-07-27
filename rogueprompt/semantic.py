@@ -84,11 +84,7 @@ class SimilarityBackend(Protocol):
 
 
 class DifflibBackend:
-    """Dependency-free fallback built on difflib.SequenceMatcher.
-
-    Chunking and the max/top-three-mean reduction match JinaBackend; only the
-    per-chunk score differs, character ratio here against cosine there.
-    """
+    """Dependency-free fallback built on difflib.SequenceMatcher."""
 
     name = "difflib"
 
@@ -107,9 +103,8 @@ class DifflibBackend:
 
 
 class JinaBackend:
-    """Embedding similarity using jinaai/jina-embeddings-v3.
-
-    Needs the embeddings extra. The model loads on first use.
+    """Embedding similarity using jinaai/jina-embeddings-v3,
+    needs embeddings, loaded on first use.
     """
 
     name = "jina"

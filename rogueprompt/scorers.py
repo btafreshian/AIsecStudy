@@ -185,8 +185,6 @@ def score_record(
         require_label_source(record, config)
 
     if execution_success is True:
-        # Line 10: execution implies reconstruction, including when the record
-        # arrives with the two set inconsistently.
         reconstruction_success = True
 
     scored["reconstruction_success"] = reconstruction_success
