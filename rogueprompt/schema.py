@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 Record = dict[str, Any]
 
 REQUIRED_FIELDS = (
@@ -25,12 +24,7 @@ class SchemaError(ValueError):
 
 
 def read_text(path: str | Path) -> str:
-    """Read a UTF-8 text file, tolerating a leading byte-order mark.
-
-    Input files come from the user and Windows tooling routinely writes UTF-8
-    with a BOM; utf-8-sig drops it when present and is identical to utf-8 when
-    it is not. Outputs are still written as plain UTF-8.
-    """
+    """Read a UTF-8 text file, tolerating a leading byte-order mark."""
     return Path(path).read_text(encoding="utf-8-sig")
 
 
@@ -74,8 +68,17 @@ def validate_record(record: Record, index: int | None = None) -> list[str]:
         if field in record and not isinstance(record[field], str):
             errors.append(f"{prefix}field {field!r} must be a string")
 
-    for field in ("original_prompt", "transformed_prompt", "model_response", "reconstructed_text"):
-        if field in record and record[field] is not None and not isinstance(record[field], str):
+    for field in (
+        "original_prompt",
+        "transformed_prompt",
+        "model_response",
+        "reconstructed_text",
+    ):
+        if (
+            field in record
+            and record[field] is not None
+            and not isinstance(record[field], str)
+        ):
             errors.append(f"{prefix}field {field!r} must be a string when present")
 
     errors.extend(_validate_status_signals(record, prefix))
@@ -84,8 +87,7 @@ def validate_record(record: Record, index: int | None = None) -> list[str]:
     return errors
 
 
-# The Section 4.5 status/error signals the block check in lexical.py reads.
-# All optional; a record may carry none of them.
+# Optional status/error signals the block check in lexical.py reads.
 STATUS_TEXT_FIELDS = (
     "finish_reason",
     "stop_reason",
@@ -105,18 +107,18 @@ def _validate_status_signals(record: Record, prefix: str) -> list[str]:
         errors.append(f"{prefix}field 'status_code' must be an integer when present")
 
     for field in STATUS_TEXT_FIELDS:
-        if field in record and record[field] is not None and not isinstance(record[field], str):
+        if (
+            field in record
+            and record[field] is not None
+            and not isinstance(record[field], str)
+        ):
             errors.append(f"{prefix}field {field!r} must be a string when present")
 
     return errors
 
 
 def _validate_provenance(record: Record, prefix: str) -> list[str]:
-    """Check the optional Section 4.5 version block.
-
-    Structural only. Which component names are meaningful is versions.py's
-    business, and this module stays below it so that module can import it.
-    """
+    """Check the optional Section 4.5 version block."""
     errors: list[str] = []
 
     if "configuration_id" in record and not isinstance(record["configuration_id"], str):
@@ -128,9 +130,12 @@ def _validate_provenance(record: Record, prefix: str) -> list[str]:
     if not isinstance(versions, dict):
         errors.append(f"{prefix}field 'versions' must be an object when present")
     elif not all(
-        isinstance(name, str) and isinstance(value, str) for name, value in versions.items()
+        isinstance(name, str) and isinstance(value, str)
+        for name, value in versions.items()
     ):
-        errors.append(f"{prefix}field 'versions' must map component names to version strings")
+        errors.append(
+            f"{prefix}field 'versions' must map component names to version strings"
+        )
 
     return errors
 

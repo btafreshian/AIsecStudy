@@ -19,7 +19,9 @@ from .versions import run_metadata, stamp_records
 def _write_json(payload: object, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def _write_jsonl(records: list[dict], path: str | Path) -> None:
@@ -72,8 +74,6 @@ def score_command(args: argparse.Namespace) -> int:
             api_key_env=args.judge_api_key_env,
         )
 
-    # One scoring path whether the judge is called here or its replies were
-    # collected separately, so both label a given reply identically.
     evaluator = HybridEvaluator(
         similarity=get_backend(args.similarity),
         judge_call=judge_call,
@@ -85,8 +85,6 @@ def score_command(args: argparse.Namespace) -> int:
     scored = evaluator.score_records(records)
 
     if not args.no_version_stamp:
-        # This run did the labeling, so it speaks for the evaluator version
-        # only; generation versions are filled in but never overwritten.
         scored = stamp_records(scored)
 
     summary = aggregate_scores(scored, group_by=_group_by(args.group_by))
@@ -110,8 +108,7 @@ def score_command(args: argparse.Namespace) -> int:
 def judge_requests_command(args: argparse.Namespace) -> int:
     records = require_valid_records(load_records(args.input))
     backend = get_backend(args.similarity)
-    # One request per response, blocks included, carrying the same advisory
-    # signals the integrated path computes.
+    # One request per response, blocks included
     requests = [
         build_judge_request(record, signals=similarity_signals(backend, record))
         for record in records
@@ -138,17 +135,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    validate_parser = subparsers.add_parser("validate", help="validate an evaluation JSON/JSONL file")
+    validate_parser = subparsers.add_parser(
+        "validate", help="validate an evaluation JSON/JSONL file"
+    )
     validate_parser.add_argument("input")
     validate_parser.set_defaults(func=validate_command)
 
-    score_parser = subparsers.add_parser("score", help="score and aggregate evaluation records")
+    score_parser = subparsers.add_parser(
+        "score", help="score and aggregate evaluation records"
+    )
     score_parser.add_argument("input")
     score_parser.add_argument("--output", help="write scored records as JSON")
-    score_parser.add_argument("--summary-json", help="write trial-level aggregate summary as JSON")
-    score_parser.add_argument("--summary-csv", help="write trial-level aggregate summary as CSV")
-    score_parser.add_argument("--conditions", help="write condition-level @3 CSV to this path")
-    score_parser.add_argument("--group-by", default="method,model", help="comma-separated grouping fields")
+    score_parser.add_argument(
+        "--summary-json", help="write trial-level aggregate summary as JSON"
+    )
+    score_parser.add_argument(
+        "--summary-csv", help="write trial-level aggregate summary as CSV"
+    )
+    score_parser.add_argument(
+        "--conditions", help="write condition-level @3 CSV to this path"
+    )
+    score_parser.add_argument(
+        "--group-by", default="method,model", help="comma-separated grouping fields"
+    )
     _add_similarity_argument(score_parser)
     score_parser.add_argument(
         "--judge-endpoint",
@@ -179,7 +188,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="stop on a judge BI for an accepted response instead of relabeling it OTH",
     )
-    score_parser.add_argument("--run-metadata", help="write this run's component versions and digests as JSON")
+    score_parser.add_argument(
+        "--run-metadata", help="write this run's component versions and digests as JSON"
+    )
     score_parser.add_argument(
         "--no-version-stamp",
         action="store_true",
@@ -187,7 +198,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     score_parser.set_defaults(func=score_command)
 
-    judge_parser = subparsers.add_parser("judge-requests", help="write judge requests as JSONL")
+    judge_parser = subparsers.add_parser(
+        "judge-requests", help="write judge requests as JSONL"
+    )
     judge_parser.add_argument("input")
     judge_parser.add_argument("--output", required=True)
     _add_similarity_argument(judge_parser)

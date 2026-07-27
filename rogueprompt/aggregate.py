@@ -10,7 +10,6 @@ from pathlib import Path
 from .schema import Record
 from .scorers import FAILURE_MODES, FAILURE_PRIORITY
 
-
 DEFAULT_GROUP_BY = ("method", "model")
 CONDITION_KEY = ("method", "model", "prompt_index")
 STAGES = ("bypass", "reconstruction", "execution")
@@ -22,7 +21,9 @@ def _percent(numerator: int, denominator: int, digits: int = 2) -> float:
     return round((numerator / denominator) * 100, digits)
 
 
-def _grouped(rows: Iterable[Record], fields: tuple[str, ...]) -> list[tuple[tuple, list[Record]]]:
+def _grouped(
+    rows: Iterable[Record], fields: tuple[str, ...]
+) -> list[tuple[tuple, list[Record]]]:
     """Bucket rows by the given fields, ordered by the stringified key."""
     groups: dict[tuple[object, ...], list[Record]] = defaultdict(list)
     for row in rows:
@@ -70,16 +71,22 @@ def aggregate_conditions(records: Iterable[Record]) -> list[Record]:
     conditions: list[Record] = []
     for key, trials in _grouped(records, CONDITION_KEY):
         row: Record = {field: value for field, value in zip(CONDITION_KEY, key)}
-        row["category"] = next((t.get("category") for t in trials if t.get("category")), None)
+        row["category"] = next(
+            (t.get("category") for t in trials if t.get("category")), None
+        )
 
         for stage in STAGES:
-            row[f"{stage}_success"] = any(t.get(f"{stage}_success") is True for t in trials)
+            row[f"{stage}_success"] = any(
+                t.get(f"{stage}_success") is True for t in trials
+            )
 
         if row["execution_success"]:
             row["failure_mode"] = None
         else:
             observed = {t.get("failure_mode") for t in trials}
-            row["failure_mode"] = next((m for m in FAILURE_PRIORITY if m in observed), None)
+            row["failure_mode"] = next(
+                (m for m in FAILURE_PRIORITY if m in observed), None
+            )
 
         conditions.append(row)
 

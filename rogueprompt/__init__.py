@@ -27,7 +27,13 @@ from .judge import (
     parse_judge_decision,
     run_judge,
 )
-from .schema import REQUIRED_FIELDS, SchemaError, load_records, require_valid_records, validate_record
+from .schema import (
+    REQUIRED_FIELDS,
+    SchemaError,
+    load_records,
+    require_valid_records,
+    validate_record,
+)
 from .scorers import (
     FAILURE_MODES,
     FAILURE_PRIORITY,

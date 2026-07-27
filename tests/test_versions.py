@@ -17,7 +17,7 @@ from rogueprompt.schema import validate_record
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# The six components of Section 4.5, in the order the paper lists them.
+# The six components of Section 4.5, in order.
 PAPER_COMPONENTS = (
     "wrapper",
     "key",
@@ -92,15 +92,19 @@ class ComponentTests(unittest.TestCase):
         for name, _, covered in V._COMPONENTS:
             with self.subTest(component=name):
                 closure = V._closure(covered)
-                self.assertEqual([V._label_of(o) for o in closure],
-                                 [V._label_of(o) for o in V._closure(covered)])
+                self.assertEqual(
+                    [V._label_of(o) for o in closure],
+                    [V._label_of(o) for o in V._closure(covered)],
+                )
                 self.assertLessEqual(
                     {V._label_of(o) for o in covered},
                     {V._label_of(o) for o in closure},
                 )
 
     def test_declared_baseline_templates_match_the_shipped_columns(self) -> None:
-        baselines = Path(__file__).resolve().parent.parent / "data" / "baseline_prompts.json"
+        baselines = (
+            Path(__file__).resolve().parent.parent / "data" / "baseline_prompts.json"
+        )
         if not baselines.exists():  # running against an installed copy
             self.skipTest("data/ is not part of the installed package")
         columns = json.loads(baselines.read_text(encoding="utf-8"))[0]
@@ -144,7 +148,10 @@ class IdentifierTests(unittest.TestCase):
             environ = dict(os.environ, PYTHONHASHSEED=seed, PYTHONPATH=str(REPO_ROOT))
             result = subprocess.run(
                 [sys.executable, "-c", script],
-                capture_output=True, text=True, env=environ, cwd=str(REPO_ROOT),
+                capture_output=True,
+                text=True,
+                env=environ,
+                cwd=str(REPO_ROOT),
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             seen.add(result.stdout.strip())
@@ -171,9 +178,8 @@ class RunMetadataTests(unittest.TestCase):
         )
 
     def test_readme_pins_the_versions_that_built_the_data(self) -> None:
-        """The README tells readers which components built data/."""
         readme = Path(__file__).resolve().parent.parent / "README.md"
-        if not readme.exists():  # running against an installed copy
+        if not readme.exists():
             self.skipTest("README.md is not part of the installed package")
 
         sentence = re.search(
@@ -191,7 +197,9 @@ class RunMetadataTests(unittest.TestCase):
         pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
         if not pyproject.exists():  # running against an installed copy
             self.skipTest("pyproject.toml is not part of the installed package")
-        declared = re.search(r'(?m)^version = "([^"]+)"', pyproject.read_text(encoding="utf-8"))
+        declared = re.search(
+            r'(?m)^version = "([^"]+)"', pyproject.read_text(encoding="utf-8")
+        )
         self.assertIsNotNone(declared)
         self.assertEqual(declared.group(1), V.__version__)
 
@@ -210,7 +218,9 @@ class StampTests(unittest.TestCase):
     def test_produced_components_are_overwritten(self) -> None:
         record = dict(RECORD, versions={"evaluator": "0.9"})
         stamped = V.stamp_record(record, produced=("evaluator",))
-        self.assertEqual(stamped["versions"]["evaluator"], V.component_versions()["evaluator"])
+        self.assertEqual(
+            stamped["versions"]["evaluator"], V.component_versions()["evaluator"]
+        )
 
     def test_versions_from_an_earlier_release_are_kept(self) -> None:
         """A scoring run did not build the prompt, so it cannot restate the wrapper."""
@@ -218,9 +228,13 @@ class StampTests(unittest.TestCase):
         stamped = V.stamp_record(record, produced=V.EVALUATION_COMPONENTS)
 
         self.assertEqual(stamped["versions"]["wrapper"], "0.9")
-        self.assertEqual(stamped["versions"]["evaluator"], V.component_versions()["evaluator"])
+        self.assertEqual(
+            stamped["versions"]["evaluator"], V.component_versions()["evaluator"]
+        )
         self.assertNotEqual(stamped["configuration_id"], V.configuration_id())
-        self.assertEqual(stamped["configuration_id"], V.configuration_id(stamped["versions"]))
+        self.assertEqual(
+            stamped["configuration_id"], V.configuration_id(stamped["versions"])
+        )
 
     def test_stamping_is_idempotent(self) -> None:
         once = V.stamp_record(RECORD)

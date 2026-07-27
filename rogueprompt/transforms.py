@@ -30,12 +30,7 @@ def _vigenere(text: str, key: str, direction: int) -> str:
 
 
 def vigenere_encrypt(plaintext: str, key: str = VIGENERE_KEY) -> str:
-    """Encrypt ASCII letters and pass everything else through.
-
-    The key advances only on the letters it shifts, so the digits, colons and
-    bars of a serialized stream survive and the payload stays parseable while
-    encrypted.
-    """
+    """Encrypt ASCII letters and pass everything else through."""
     return _vigenere(plaintext, key, 1)
 
 
@@ -54,22 +49,14 @@ def apply_rot13(text: str) -> str:
 
 
 def _require_text(input_text: str) -> str:
-    """Reject blank input and return the text in NFC.
-
-    NFC preserves the characters; the compatibility forms NFKC and NFKD rewrite
-    them, which would break exact recovery.
-    """
+    """Reject blank input and return the text in NFC."""
     if not input_text.strip():
         raise ValueError("input_text cannot be empty")
     return unicodedata.normalize("NFC", input_text)
 
 
 def segment_text(input_text: str) -> tuple[str, ...]:
-    """Split text into spans that concatenate back to the original.
-
-    A span is one run of non-whitespace plus the whitespace after it. Leading
-    whitespace has no word to attach to, so it becomes its own first span.
-    """
+    """Split text into spans that concatenate back to the original."""
     text = _require_text(input_text)
     spans: list[str] = []
     cursor = 0
@@ -108,7 +95,9 @@ def _read_span(text: str, cursor: int) -> tuple[str, int]:
     while cursor < len(text) and text[cursor].isdigit():
         cursor += 1
     if cursor == length_start or cursor >= len(text) or text[cursor] != ":":
-        raise ValueError(f"invalid span length prefix at code-point offset {length_start}")
+        raise ValueError(
+            f"invalid span length prefix at code-point offset {length_start}"
+        )
 
     length = int(text[length_start:cursor])
     cursor += 1
@@ -119,11 +108,7 @@ def _read_span(text: str, cursor: int) -> tuple[str, int]:
 
 
 def deserialize_spans(serialized: str) -> tuple[str, ...]:
-    """Inverse of serialize_spans.
-
-    The declared lengths drive the parse, so a span may contain "|" or ":"
-    unescaped.
-    """
+    """Inverse of serialize_spans."""
     if serialized == "":
         return ()
 
@@ -162,11 +147,7 @@ def _consume_serialized_field(
     cursor: int,
     terminator: str,
 ) -> tuple[str, int]:
-    """Read one serialized stream up to terminator, and step past it.
-
-    Driven by the span lengths rather than a search for the terminator, since
-    span text can contain ";ODD=" or ";KEY=" itself.
-    """
+    """Read one serialized stream up to terminator, based on span length, and step past it."""
     start = cursor
     if payload.startswith(terminator, cursor):
         return "", cursor + len(terminator)
@@ -205,7 +186,9 @@ def parse_payload(payload: str) -> tuple[str, str, str, str]:
 def interleave_spans(even: Sequence[str], odd: Sequence[str]) -> tuple[str, ...]:
     """Rebuild the span sequence, even stream first."""
     if len(even) not in {len(odd), len(odd) + 1}:
-        raise ValueError("even and odd stream lengths are inconsistent with 0-even order")
+        raise ValueError(
+            "even and odd stream lengths are inconsistent with 0-even order"
+        )
 
     recovered: list[str] = []
     for index, even_span in enumerate(even):

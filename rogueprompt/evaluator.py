@@ -1,11 +1,4 @@
-"""Hybrid evaluator: rule-based signals, embedding similarity, and a judge.
-
-Algorithm 2 lines 5-15 for a single trial. Computes the visible-acceptance and
-auxiliary signals, calls the judge, and hands the result to score_record, which
-owns the staged label rules. Blocks are judged too: the block rule runs after
-the judge call and overrides it, so there is one judge call per response either
-way.
-"""
+"""Hybrid evaluator: rule-based signals, embedding similarity, and a judge."""
 
 from __future__ import annotations
 

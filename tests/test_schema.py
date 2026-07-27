@@ -66,7 +66,9 @@ class ByteOrderMarkTests(unittest.TestCase):
                 self.assertEqual(load_records(path), [RECORD])
 
     def test_wrapped_records_object_loads_with_a_bom(self) -> None:
-        path = self._write("wrapped.json", json.dumps({"records": [RECORD]}), "utf-8-sig")
+        path = self._write(
+            "wrapped.json", json.dumps({"records": [RECORD]}), "utf-8-sig"
+        )
         self.assertEqual(load_records(path), [RECORD])
 
     def test_judge_decisions_load_with_and_without_bom(self) -> None:

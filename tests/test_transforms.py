@@ -55,11 +55,6 @@ class SerializationTests(unittest.TestCase):
 
 
 class PaperDemoVectorTests(unittest.TestCase):
-    """The worked example of Section 4.2, reproduced exactly.
-
-    The paper prints every intermediate for I = "bring blue pens", so a failure
-    here means the code and the paper have diverged.
-    """
 
     INPUT = "bring blue pens"
     KEY = "LIME"
@@ -88,9 +83,7 @@ class PaperDemoVectorTests(unittest.TestCase):
         )
 
     def test_assembled_and_rot13_payloads(self) -> None:
-        payload = T.assemble_payload(
-            self.SERIALIZED_EVEN, self.ENCRYPTED_ODD, self.KEY
-        )
+        payload = T.assemble_payload(self.SERIALIZED_EVEN, self.ENCRYPTED_ODD, self.KEY)
         self.assertEqual(payload, self.PAYLOAD)
         self.assertEqual(T.apply_rot13(payload), self.ROT13_PAYLOAD)
 
@@ -192,11 +185,15 @@ class FullRoundTripTests(unittest.TestCase):
         payload = T.apply_rot13(
             no_vigenere.rsplit(T.ENCODED_PAYLOAD_MARKER, 1)[1].strip()
         )
-        self.assertEqual(T.reconstruct_payload(payload, odd_is_encrypted=False), expected)
+        self.assertEqual(
+            T.reconstruct_payload(payload, odd_is_encrypted=False), expected
+        )
 
         splitting_only = T.generate_splitting_only_prompt(text)
         payload = splitting_only.rsplit(T.PLAIN_PAYLOAD_MARKER, 1)[1].strip()
-        self.assertEqual(T.reconstruct_payload(payload, odd_is_encrypted=False), expected)
+        self.assertEqual(
+            T.reconstruct_payload(payload, odd_is_encrypted=False), expected
+        )
 
 
 if __name__ == "__main__":

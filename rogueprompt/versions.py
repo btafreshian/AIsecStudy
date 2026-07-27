@@ -1,8 +1,7 @@
 """Per-component versions for the log fields of Section 4.5.
 
 Logs record the wrapper, key, serialization, baseline template, parser, and
-evaluator versions. The six are fixed independently before a run, so one
-distribution version cannot stand in for them.
+evaluator versions.
 
 Each component declares a version and names the objects it covers. The declared
 versions feed ``configuration_id``, which stays computable for a record built
@@ -34,8 +33,7 @@ from .schema import Record
 # Keep in sync with pyproject.toml; tests/test_versions.py checks the pair.
 __version__ = "0.1.0"
 
-# The baseline columns of data/baseline_prompts.json. The templates themselves
-# come from prior work, so the column set is what we fix here.
+# The baseline columns of data/baseline_prompts.json.
 BASELINE_TEMPLATES = (
     "jailbroken_prompt_pair",
     "jailbroken_prompt_pap_authority_endorsement",
@@ -58,13 +56,14 @@ def _const(label: str, value: object) -> _Constant:
 
 
 # (name, declared version, covered objects), in the order of Section 4.5.
-# Single source of truth for both the versions and the digests.
 _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
     (
         "wrapper",
         "1.0",
         (
-            _const("transforms.ENCODED_PAYLOAD_MARKER", _transforms.ENCODED_PAYLOAD_MARKER),
+            _const(
+                "transforms.ENCODED_PAYLOAD_MARKER", _transforms.ENCODED_PAYLOAD_MARKER
+            ),
             _const("transforms.PLAIN_PAYLOAD_MARKER", _transforms.PLAIN_PAYLOAD_MARKER),
             _transforms.generate_rogueprompt,
             _transforms.generate_no_rot13_prompt,
@@ -87,7 +86,6 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
     ),
     (
         # Segmentation and serialization, plus the ROT13 layer over the
-        # assembled payload; Section 4.5 does not version ROT13 separately.
         "serialization",
         "1.0",
         (
@@ -138,8 +136,13 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
                 "lexical.RECONSTRUCTION_ERROR_PATTERNS",
                 _lexical.RECONSTRUCTION_ERROR_PATTERNS,
             ),
-            _const("lexical.BLOCKING_STOP_REASONS", sorted(_lexical.BLOCKING_STOP_REASONS)),
-            _const("lexical.RETRYABLE_STATUS_CODES", sorted(_lexical.RETRYABLE_STATUS_CODES)),
+            _const(
+                "lexical.BLOCKING_STOP_REASONS", sorted(_lexical.BLOCKING_STOP_REASONS)
+            ),
+            _const(
+                "lexical.RETRYABLE_STATUS_CODES",
+                sorted(_lexical.RETRYABLE_STATUS_CODES),
+            ),
             _lexical.detect_service_block,
             _lexical.find_refusal,
             _lexical.find_reconstruction_error,
@@ -165,7 +168,13 @@ _COMPONENTS: tuple[tuple[str, str, tuple[object, ...]], ...] = (
 COMPONENT_NAMES = tuple(name for name, _, _ in _COMPONENTS)
 
 # Prompt construction fixes the first five; scoring fixes the last one.
-GENERATION_COMPONENTS = ("wrapper", "key", "serialization", "baseline_template", "parser")
+GENERATION_COMPONENTS = (
+    "wrapper",
+    "key",
+    "serialization",
+    "baseline_template",
+    "parser",
+)
 EVALUATION_COMPONENTS = ("evaluator",)
 
 
@@ -214,12 +223,7 @@ _ADDRESS_RE = re.compile(r" at 0x[0-9a-fA-F]+")
 
 
 def _stable_repr(value: object) -> str | None:
-    """Render a constant so identical code digests identically everywhere.
-
-    Set and dict iteration order follows per-process string hashing, so those
-    are emitted sorted; a value whose repr carries its address is refused
-    rather than digested unstably.
-    """
+    """Render a constant so identical code digests identically everywhere."""
     if isinstance(value, (frozenset, set)):
         parts = [_stable_repr(item) for item in value]
         if any(part is None for part in parts):
@@ -255,11 +259,7 @@ def _as_constant(module: object, name: str, value: object) -> _Constant | None:
 
 
 def _referenced(obj: object) -> list[object]:
-    """Return the package-level objects named in obj's source.
-
-    Bare names and dotted attributes are resolved against the globals of the
-    defining module, so stdlib and third-party calls are left out.
-    """
+    """Return the package-level objects named in obj's source."""
     module = _own_module(obj)
     if module is None:
         return []
@@ -292,11 +292,7 @@ def _referenced(obj: object) -> list[object]:
 
 
 def _closure(covered: Iterable[object]) -> list[object]:
-    """Expand covered objects with the package code they reach.
-
-    Keyed and ordered by label, so the digest does not depend on traversal
-    order and a constant reached twice is counted once.
-    """
+    """Expand covered objects with the package code they reach."""
     seen: dict[str, object] = {}
     queue = list(covered)
     while queue:
@@ -355,15 +351,13 @@ def configuration_id(versions: Mapping[str, str] | None = None) -> str:
     that record's identifier.
     """
     items = component_versions() if versions is None else dict(versions)
-    return _short_hash("cfg", ";".join(f"{name}={items[name]}" for name in sorted(items)))
+    return _short_hash(
+        "cfg", ";".join(f"{name}={items[name]}" for name in sorted(items))
+    )
 
 
 def code_id() -> str:
-    """Return the fingerprint of the code behind the declared versions.
-
-    Same configuration_id but different code_id means the same version labels
-    over different code.
-    """
+    """Return the fingerprint of the code behind the declared versions."""
     payload = ";".join(f"{c.name}={c.digest}" for c in components())
     return _short_hash("code", payload)
 
@@ -391,13 +385,7 @@ def stamp_record(
     *,
     produced: Sequence[str] = EVALUATION_COMPONENTS,
 ) -> Record:
-    """Return a copy of record carrying the Section 4.5 version block.
-
-    ``produced`` names the components this run actually ran, which are always
-    taken from this installation. The rest are filled in only when missing, so
-    a prompt built by an earlier release keeps the wrapper version that built
-    it.
-    """
+    """Return a copy of record carrying the Section 4.5 version block."""
     unknown = [name for name in produced if name not in COMPONENT_NAMES]
     if unknown:
         raise ValueError(

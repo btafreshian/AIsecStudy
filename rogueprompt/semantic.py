@@ -1,15 +1,7 @@
 """Similarity signals for the hybrid evaluator.
 
 Two signals per record: the max and the top-three mean cosine similarity
-between the original request and chunks of the model response. JinaBackend
-computes them with jina-embeddings-v3 over 1024-dimensional L2-normalized
-embeddings, query adapter for the request and passage adapter for the chunks.
-DifflibBackend approximates the same two numbers without the model.
-
-Both are advisory, per Section 5.2: no threshold over them decides a stage.
-
-sentence_transformers and numpy are imported inside the methods that need them,
-so importing this module never pulls in the optional extras.
+between the original request and chunks of the model response.
 """
 
 from __future__ import annotations
@@ -88,8 +80,7 @@ class SimilarityBackend(Protocol):
 
     name: str
 
-    def signals(self, original: str, response: str) -> SimilaritySignals:
-        ...
+    def signals(self, original: str, response: str) -> SimilaritySignals: ...
 
 
 class DifflibBackend:
@@ -111,9 +102,7 @@ class DifflibBackend:
         chunks = chunk_text(response or "", self.max_chars)
         if not query or not chunks:
             return EMPTY_SIGNALS
-        sims = [
-            SequenceMatcher(None, query, chunk.lower()).ratio() for chunk in chunks
-        ]
+        sims = [SequenceMatcher(None, query, chunk.lower()).ratio() for chunk in chunks]
         return _summarize(sims, len(chunks))
 
 
@@ -145,10 +134,12 @@ class JinaBackend:
 
     def _encode(self, texts: list[str], task: str):
         model = self._load()
-        # task picks the LoRA adapter, truncate_dim does Matryoshka truncation.
-        # Older sentence-transformers releases reject one or both kwargs.
         for kwargs in (
-            {"task": task, "truncate_dim": self.truncate_dim, "normalize_embeddings": True},
+            {
+                "task": task,
+                "truncate_dim": self.truncate_dim,
+                "normalize_embeddings": True,
+            },
             {"task": task, "normalize_embeddings": True},
             {"normalize_embeddings": True},
         ):
@@ -173,12 +164,10 @@ class JinaBackend:
         return _summarize([float(value) for value in sims], len(chunks))
 
 
-def get_backend(name: str = "auto", max_chars: int = DEFAULT_CHUNK_CHARS) -> SimilarityBackend:
-    """Return a similarity backend by name.
-
-    "auto" takes JinaBackend if sentence-transformers imports and DifflibBackend
-    otherwise; "jina" and "difflib" force one or the other.
-    """
+def get_backend(
+    name: str = "auto", max_chars: int = DEFAULT_CHUNK_CHARS
+) -> SimilarityBackend:
+    """Return a similarity backend by name."""
     import importlib.util
 
     normalized = (name or "auto").lower()
@@ -194,5 +183,9 @@ def get_backend(name: str = "auto", max_chars: int = DEFAULT_CHUNK_CHARS) -> Sim
     if normalized == "difflib":
         return DifflibBackend(max_chars=max_chars)
     if normalized == "auto":
-        return JinaBackend(max_chars=max_chars) if have_st else DifflibBackend(max_chars=max_chars)
+        return (
+            JinaBackend(max_chars=max_chars)
+            if have_st
+            else DifflibBackend(max_chars=max_chars)
+        )
     raise ValueError(f"unknown similarity backend {name!r}")
